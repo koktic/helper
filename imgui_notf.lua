@@ -50,15 +50,15 @@ function setstyle()
 	-- style.AntiAliasedShapes =
 	-- style.CurveTessellationTol =
 
-	colors[clr.Text]                   = ImVec4(1.00, 1.00, 1.00, 1.00)
+	colors[clr.Text]                   = ImVec4(1.00, 1.00, 1.00, 0.33)
 	colors[clr.TextDisabled]           = ImVec4(0.50, 0.50, 0.50, 1.00)
-	colors[clr.WindowBg]               = ImVec4(0.06, 0.06, 0.06, 0.71)
+	colors[clr.WindowBg]               = ImVec4(0.15, 0.10, 0.25, 0.13)
 	colors[clr.ChildWindowBg]          = ImVec4(1.00, 1.00, 1.00, 0.00)
 	colors[clr.PopupBg]                = ImVec4(0.08, 0.08, 0.08, 0.94)
 	colors[clr.ComboBg]                = colors[clr.PopupBg]
-	colors[clr.Border]                 = ImVec4(0.43, 0.43, 0.50, 0.50)
+	colors[clr.Border]                 = ImVec4(0.25, 0.25, 0.30, 0.50)
 	colors[clr.BorderShadow]           = ImVec4(0.00, 0.00, 0.00, 0.00)
-	colors[clr.FrameBg]                = ImVec4(0.12, 0.12, 0.12, 0.94)
+	colors[clr.FrameBg]                = ImVec4(0.15, 0.10, 0.25, 0.30)
 	colors[clr.FrameBgHovered]         = ImVec4(0.45, 0.45, 0.45, 0.85)
 	colors[clr.FrameBgActive]          = ImVec4(0.63, 0.63, 0.63, 0.63)
 	colors[clr.TitleBg]                = ImVec4(0.13, 0.13, 0.13, 0.99)
@@ -147,7 +147,7 @@ function onRenderNotification()
 	sX, sY = ToScreen(630, 438)
 	notfList = {
 		pos = {
-			x = sX - 200,
+			x = sX - 170,
 			y = sY
 		},
 		npos = {
