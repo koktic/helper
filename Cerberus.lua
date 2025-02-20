@@ -1,4 +1,4 @@
-script_version("v1.00")
+script_version("v1.01")
 script_name("Mini Helper")
 local name = "[Mini Helper] "
 local color1 = "{B43DD9}" 
