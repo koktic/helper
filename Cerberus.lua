@@ -1,4 +1,5 @@
 script_version("v1.00")
+script_name("Mini Helper")
 local name = "[Mini Helper] "
 local color1 = "{B43DD9}" 
 local color2 = "{FFFFFF}"
