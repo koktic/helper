@@ -355,6 +355,9 @@ end
 
 function main()
     while not isSampAvailable() do wait(0) end
+if autoupdate_loaded and enable_autoupdate and Update then
+        pcall(Update.check, Update.json_url, Update.prefix, Update.url)
+    end
 	sampAddChatMessage(tag.."Открыть меню скрипта /" ..settings.main.menu,-1)
     sampAddChatMessage(tag.."Успешно загружен!",-1)
 	sampRegisterChatCommand(settings.main.menu, function() WinState[0] = not WinState[0] end)
@@ -378,9 +381,6 @@ function main()
         if stream then
             table.insert(sound_streams, stream)
         end
-    end
-	if autoupdate_loaded and enable_autoupdate and Update then
-		pcall(Update.check, Update.json_url, Update.prefix, Update.url)
     end
 	getLastUpdate() -- вызываем функцию получения последнего ID сообщения
 	while true do
