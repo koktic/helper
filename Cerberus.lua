@@ -1,4 +1,4 @@
-script_version("v1.01")
+script_version("v1.02")
 script_name("Mini Helper")
 local name = "[Mini Helper] "
 local color1 = "{B43DD9}" 
@@ -25,6 +25,7 @@ end
 
 local tab = 1
 local WinState = new.bool()
+
 
 --ОБНОВА
 local enable_autoupdate = true
@@ -65,9 +66,10 @@ local settings = ini.load({
 		tg_pay = false,
 		tg_upom = false,
     },
-	   dop = {
+	dop = {
 		castom_dl = 'cdl',
     },
+	color_chat = {1, 0, 0, 1},
 }, 'MiniHelper.ini')
 ---ТГ ЛОКАЛ
 local inputid = new.char[256](u8(settings.telegram.chat_id))
@@ -86,6 +88,9 @@ local stop_threads = false -- Флаг для завершения потоко�
 
 --ПОЛЕЗНОЕ
 local cdl = new.char[12](u8(settings.dop.castom_dl))
+
+--ЦВЕТА
+local colorchat = imgui.new.float[4](settings.color_chat)
 
 ---Основаня часть
 local menu = new.char[12](u8(settings.main.menu))
@@ -259,11 +264,11 @@ function getLastUpdate() -- тут мы получаем последний ID �
 end
 
 -- События сервера
-zalutal = 0
 function ev.onServerMessage(color, text)
 	local Money = getPlayerMoney()
 	local Id = select(2, sampGetPlayerIdByCharHandle(PLAYER_PED))
 	local Name = sampGetPlayerNickname(Id)
+	local chatstring = sampGetChatString(99)
 	if settings.telegram.tg_upom then
 		if text:find('@'..Id) then
 			sendTelegramNotification("[Упоминание]\n" ..text)
@@ -321,9 +326,7 @@ function ev.onServerMessage(color, text)
 		if text:find('^Вы купили (.*) %(%d шт.%) у игрока (%w+_%w+) за $(.*)') then
 			sendTelegramNotification(string.format(separator('[ЦР]'..text..'\nВаш баланс: $'..Money)))
 		elseif text:match('(%w+_%w+) купил у вас (.+), вы получили $(.*) от продажи') then
-			lutanul = text:match('вы получили $(.*) от продажи')
-			zalutal = zalutal + lutanul
-			sendTelegramNotification(separator(string.format('[ЦР] %s \nТы получил за сессию: $%s \nВаш баланс: $%s',text,zalutal,Money)))
+			sendTelegramNotification(string.format(separator('[ЦР]'..text..'\nВаш баланс: $'..Money)))
 		end
 	end
 	if settings.telegram.tg_ab then
@@ -336,10 +339,22 @@ function ev.onServerMessage(color, text)
 	end
 	if text:find('^%[Альянс%](.*)') then
 		cvet,nick,ider,vivod = text:match('^%[Альянс%] (.*) (%w+_%w+)%[(.*)]:(.*)')
-		sampAddChatMessage('{808000}[Альянс] '..cvet..' '..nick..'['..ider..']:{B9C1B8}'..vivod, -1)
+		sampAddChatMessage(intToHex(join_argb(colorchat[3] * 255, colorchat[0] * 255, colorchat[1] * 255, colorchat[2] * 255))..'[Альянс] '..cvet..' '..nick..'['..ider..']:{B9C1B8}'..vivod, -1)
 		return false
 	end
 end
+
+
+function onReceivePacket(id)
+    if id == 32 then
+		sendTelegramNotification('Сервер закрыл соединение.') 
+	elseif id == 33 then 
+		sendTelegramNotification('Соединение с сервером было утеряно') 
+	elseif id == 36 then
+		sendTelegramNotification('Соединение с сервером было заблокировано') 
+	end
+end
+
 
 ---КОНЕЦ РАБОТЫ С ТГ
 function playRandomSound()
@@ -355,11 +370,13 @@ end
 
 function main()
     while not isSampAvailable() do wait(0) end
-if autoupdate_loaded and enable_autoupdate and Update then
+	if autoupdate_loaded and enable_autoupdate and Update then
         pcall(Update.check, Update.json_url, Update.prefix, Update.url)
     end
 	sampAddChatMessage(tag.."Открыть меню скрипта /" ..settings.main.menu,-1)
     sampAddChatMessage(tag.."Успешно загружен!",-1)
+	
+	sampRegisterChatCommand('test',govno)
 	sampRegisterChatCommand(settings.main.menu, function() WinState[0] = not WinState[0] end)
 	sampRegisterChatCommand(settings.dop.castom_dl, function()
 		active = not active
@@ -412,24 +429,25 @@ end
 --Я ЗНАЮ ЧТО ТУТ ПОЛНО ГОВНОКОДА,НО Я НОВИЧОК В LUA
 imgui.OnFrame(function() return WinState[0] end, function(player)
     imgui.SetNextWindowPos(imgui.ImVec2(500, 500), imgui.Cond.FirstUseEver, imgui.ImVec2(0.5, 0.5))
-    imgui.SetNextWindowSize(imgui.ImVec2(506, 228), imgui.Cond.Always)
+    imgui.SetNextWindowSize(imgui.ImVec2(506, 243), imgui.Cond.Always)
     imgui.Begin('##Window', WinState, imgui.WindowFlags.NoResize + imgui.WindowFlags.NoCollapse)
 
-    if imgui.BeginChild('Menu', imgui.ImVec2(136, 192), false) then
+    if imgui.BeginChild('Menu', imgui.ImVec2(136, 208), false) then
         local buttonHeight = 22
-        local totalButtonHeight = 7 * buttonHeight
+        local totalButtonHeight = 8 * buttonHeight
         local startY = (185 - totalButtonHeight) / 2
         imgui.SetCursorPosY(startY)
         if imgui.GradientPB(tab == 1, fa.ICON_FA_BARS, u8'ГЛАВНАЯ', 0.40) then tab = 1 end
         if imgui.GradientPB(tab == 2, fa.ICON_FA_COGS, u8'НАСТРОЙКИ', 0.40) then tab = 2 end
         if imgui.GradientPB(tab == 3, fa.ICON_FA_PAPER_PLANE, u8'ТГ Уведы', 0.40) then tab = 3 end
         if imgui.GradientPB(tab == 4, fa.ICON_FA_BUG, u8'ПОЛЕЗНОЕ', 0.40) then tab = 4 end
+		if imgui.GradientPB(tab == 5, fa.ICON_FA_BUG, u8'ЦВЕТА', 0.40) then tab = 5 end
         imgui.EndChild()
     end
 
     imgui.SameLine()
 
-    if imgui.BeginChild('Function', imgui.ImVec2(360, 192), true) then
+    if imgui.BeginChild('Function', imgui.ImVec2(360, 208), true) then
         if tab == 1 then
             imgui.Text(u8'Добро пожалоавть!')
 			imgui.Text(u8'')
@@ -532,6 +550,12 @@ imgui.OnFrame(function() return WinState[0] end, function(player)
                 ini.save(settings, 'MiniHelper.ini')
                 thisScript():reload()
             end
+		elseif tab == 5 then
+        if imgui.ColorEdit4(u8'Цвет чата альянса', colorchat, imgui.ColorEditFlags.NoAlpha) then
+			local clr = {colorchat[0], colorchat[1], colorchat[2], colorchat[3]}
+			settings.color_chat = clr
+			ini.save(settings, 'MiniHelper.ini')
+		end
         end
         imgui.EndChild()
     end
@@ -633,6 +657,34 @@ function imgui.GradientPB(bool, icon, text, duration, size, color)
     return result
 end
 
+
+function join_argb(a, r, g, b)
+    local argb = b  -- b
+    argb = bit.bor(argb, bit.lshift(g, 8))  -- g
+    argb = bit.bor(argb, bit.lshift(r, 16)) -- r
+    argb = bit.bor(argb, bit.lshift(a, 24)) -- a
+    return argb
+end
+
+function intToHex(int)
+    return '{'..string.sub(bit.tohex(int), 3, 8)..'}'
+end
+
+function explode_argb(argb)
+  local a = bit.band(bit.rshift(argb, 24), 0xFF)
+  local r = bit.band(bit.rshift(argb, 16), 0xFF)
+  local g = bit.band(bit.rshift(argb, 8), 0xFF)
+  local b = bit.band(argb, 0xFF)
+  return a, r, g, b
+end
+
+function argb_to_rgba(argb)
+  local a, r, g, b = explode_argb(argb)
+  return join_argb(r, g, b, a)
+end
+
+
+
 function theme()
     imgui.SwitchContext()
     local ImVec4 = imgui.ImVec4
@@ -694,3 +746,4 @@ end
 imgui.OnInitialize(function()
     theme()
 end)
+	
