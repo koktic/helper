@@ -1,4 +1,4 @@
-script_version("v1.05")
+script_version("v1.06")
 script_name("Mini Helper")
 local name = "[Mini Helper] "
 local color1 = "{B43DD9}" 
@@ -332,7 +332,7 @@ function ev.onServerMessage(color, text)
 	end
 	if settings.telegram.tg_ab then
 		if text:find(u8:decode'^%[Информация%] {FFFFFF}Поздравляем с продажей транспортного средства%.$') then
-			sendTelegramNotification(string.format(separator(u8:decode'[АБ]'..text..'\nВаш баланс: $'..Money)))
+			sendTelegramNotification(separator(string.format(u8:decode'[АБ] %s \nВаш баланс: $%s' , text, Money)))
 		end
 	end
 	if text:find(u8:decode'^%[Ошибка%] {FFFFFF}Произошла ошибка, игрок состоит в другой семье!') then
