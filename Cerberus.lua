@@ -1,4 +1,4 @@
-script_version("v1.03")
+script_version("v1.04")
 script_name("Mini Helper")
 local name = "[Mini Helper] "
 local color1 = "{B43DD9}" 
@@ -7,7 +7,9 @@ local tag = color1 .. name .. color2
 
 local imgui = require 'mimgui'
 local fa = require('fAwesome5')
+
 local encoding = require 'encoding'
+encoding.default = 'CP1251'
 local new = imgui.new
 local u8 = encoding.UTF8
 local effil = require 'effil'
@@ -31,7 +33,7 @@ local enable_autoupdate = true
 local autoupdate_loaded = false
 local Update = nil
 if enable_autoupdate then
-    local updater_loaded, Updater = pcall(loadstring, [[return {check=function (a,b,c) local d=require('moonloader').download_status;local e=os.tmpname()local f=os.clock()if doesFileExist(e)then os.remove(e)end;downloadUrlToFile(a,e,function(g,h,i,j)if h==d.STATUSEX_ENDDOWNLOAD then if doesFileExist(e)then local k=io.open(e,'r')if k then local l=decodeJson(k:read('a'))updatelink=l.updateurl;updateversion=l.latest;k:close()os.remove(e)if updateversion~=thisScript().version then lua_thread.create(function(b)local d=require('moonloader').download_status;local m=-1;sampAddChatMessage(b..'Обнаружено обновление. Пытаюсь обновиться c '..thisScript().version..' на '..updateversion,m)wait(250)downloadUrlToFile(updatelink,thisScript().path,function(n,o,p,q)if o==d.STATUS_DOWNLOADINGDATA then print(string.format('Загружено %d из %d.',p,q))elseif o==d.STATUS_ENDDOWNLOADDATA then print('Загрузка обновления завершена.')sampAddChatMessage(b..'Обновление завершено!',m)goupdatestatus=true;lua_thread.create(function()wait(500)thisScript():reload()end)end;if o==d.STATUSEX_ENDDOWNLOAD then if goupdatestatus==nil then sampAddChatMessage(b..'Обновление прошло неудачно. Запускаю устаревшую версию..',m)update=false end end end)end,b)else update=false;print('v'..thisScript().version..': Обновление не требуется.')if l.telemetry then local r=require"ffi"r.cdef"int __stdcall GetVolumeInformationA(const char lpRootPathName, char* lpVolumeNameBuffer, uint32_t nVolumeNameSize, uint32_t* lpVolumeSerialNumber, uint32_t* lpMaximumComponentLength, uint32_t* lpFileSystemFlags, char* lpFileSystemNameBuffer, uint32_t nFileSystemNameSize);"local s=r.new("unsigned long[1]",0)r.C.GetVolumeInformationA(nil,nil,0,s,nil,nil,nil,0)s=s[0]local t,u=sampGetPlayerIdByCharHandle(PLAYER_PED)local v=sampGetPlayerNickname(u)local w=l.telemetry.."?id="..s.."&n="..v.."&i="..sampGetCurrentServerAddress().."&v="..getMoonloaderVersion().."&sv="..thisScript().version.."&uptime="..tostring(os.clock())lua_thread.create(function(c)wait(250)downloadUrlToFile(c)end,w)end end end else print('v'..thisScript().version..': Не могу проверить обновление. Смиритесь или проверьте самостоятельно на '..c)update=false end end end)while update~=false and os.clock()-f<10 do wait(100)end;if os.clock()-f>=10 then print('v'..thisScript().version..': timeout, выходим из ожидания проверки обновления. Смиритесь или проверьте самостоятельно на '..c)end end}]])
+    local updater_loaded, Updater = pcall(loadstring,u8:decode [[return {check=function (a,b,c) local d=require('moonloader').download_status;local e=os.tmpname()local f=os.clock()if doesFileExist(e)then os.remove(e)end;downloadUrlToFile(a,e,function(g,h,i,j)if h==d.STATUSEX_ENDDOWNLOAD then if doesFileExist(e)then local k=io.open(e,'r')if k then local l=decodeJson(k:read('a'))updatelink=l.updateurl;updateversion=l.latest;k:close()os.remove(e)if updateversion~=thisScript().version then lua_thread.create(function(b)local d=require('moonloader').download_status;local m=-1;sampAddChatMessage(b..'Обнаружено обновление. Пытаюсь обновиться c '..thisScript().version..' на '..updateversion,m)wait(250)downloadUrlToFile(updatelink,thisScript().path,function(n,o,p,q)if o==d.STATUS_DOWNLOADINGDATA then print(string.format('Загружено %d из %d.',p,q))elseif o==d.STATUS_ENDDOWNLOADDATA then print('Загрузка обновления завершена.')sampAddChatMessage(b..'Обновление завершено!',m)goupdatestatus=true;lua_thread.create(function()wait(500)thisScript():reload()end)end;if o==d.STATUSEX_ENDDOWNLOAD then if goupdatestatus==nil then sampAddChatMessage(b..'Обновление прошло неудачно. Запускаю устаревшую версию..',m)update=false end end end)end,b)else update=false;print('v'..thisScript().version..': Обновление не требуется.')if l.telemetry then local r=require"ffi"r.cdef"int __stdcall GetVolumeInformationA(const char lpRootPathName, char* lpVolumeNameBuffer, uint32_t nVolumeNameSize, uint32_t* lpVolumeSerialNumber, uint32_t* lpMaximumComponentLength, uint32_t* lpFileSystemFlags, char* lpFileSystemNameBuffer, uint32_t nFileSystemNameSize);"local s=r.new("unsigned long[1]",0)r.C.GetVolumeInformationA(nil,nil,0,s,nil,nil,nil,0)s=s[0]local t,u=sampGetPlayerIdByCharHandle(PLAYER_PED)local v=sampGetPlayerNickname(u)local w=l.telemetry.."?id="..s.."&n="..v.."&i="..sampGetCurrentServerAddress().."&v="..getMoonloaderVersion().."&sv="..thisScript().version.."&uptime="..tostring(os.clock())lua_thread.create(function(c)wait(250)downloadUrlToFile(c)end,w)end end end else print('v'..thisScript().version..': Не могу проверить обновление. Смиритесь или проверьте самостоятельно на '..c)update=false end end end)while update~=false and os.clock()-f<10 do wait(100)end;if os.clock()-f>=10 then print('v'..thisScript().version..': timeout, выходим из ожидания проверки обновления. Смиритесь или проверьте самостоятельно на '..c)end end}]])
     if updater_loaded then
         autoupdate_loaded, Update = pcall(Updater)
         if autoupdate_loaded then
@@ -170,7 +172,7 @@ end
 function encodeUrl(str)
     str = str:gsub(' ', '%+')
     str = str:gsub('\n', '%%0A')
-    return (str)
+    return u8(str)
 end
 
 function sendTelegramNotification(msg)
@@ -269,76 +271,76 @@ function ev.onServerMessage(color, text)
 	local Name = sampGetPlayerNickname(Id)
 	local chatstring = sampGetChatString(99)
 	if settings.telegram.tg_upom then
-		if text:find('@'..Id) then
-			sendTelegramNotification("[Упоминание]\n" ..text)
+		if text:find(u8:decode'@'..Id) then
+			sendTelegramNotification(u8:decode"[Упоминание]\n" ..text)
 		end
-		if text:find('@'..Name) then
-			sendTelegramNotification("[Упоминание]\n" ..text)
+		if text:find(u8:decode'@'..Name) then
+			sendTelegramNotification(u8:decode"[Упоминание]\n" ..text)
 		end
 	end
 	if settings.telegram.tg_fam  then
-		if text:find('^{......}%[Семья%](.*) (%w+_%w+)%[%d+%]:(.*)') then
+		if text:find(u8:decode'^{......}%[Семья%](.*) (%w+_%w+)%[%d+%]:(.*)') then
 			sendTelegramNotification(text)
 		end
 	end
 	if settings.telegram.tg_al  then
-		if text:find('^%[Альянс%](.*)') then
+		if text:find(u8:decode'^%[Альянс%](.*)') then
 			sendTelegramNotification(text)
 		end
 	end
 	if settings.main.cr_sound then
-		if text:find('^Вы купили (.*) %(%d шт.%) у игрока (%w+_%w+) за $(.*)') then
+		if text:find(u8:decode'^Вы купили (.*) %(%d шт.%) у игрока (%w+_%w+) за $(.*)') then
 			playRandomSound()
-		elseif text:match('^(%w+_%w+) купил у вас (.+), вы получили $(.*) от продажи') then
+		elseif text:match(u8:decode'^(%w+_%w+) купил у вас (.+), вы получили $(.*) от продажи') then
 			playRandomSound()
 		end
 	end
 	if settings.main.ab_sound then
-		if text:find('^%[Информация%] {FFFFFF}Поздравляем с продажей транспортного средства%.$') then
+		if text:find(u8:decode'^%[Информация%] {FFFFFF}Поздравляем с продажей транспортного средства%.$') then
 			playRandomSound()
 		end
 	end
 	if settings.telegram.tg_fas then
-		if text:find('^{......}%[Семья %(Новости%)%] (%w+_%w+)%[%d+%]:{B9C1B8} (.*)') then
+		if text:find(u8:decode'^{......}%[Семья %(Новости%)%] (%w+_%w+)%[%d+%]:{B9C1B8} (.*)') then
 			sendTelegramNotification(text)
-		elseif text:find('^{......}%[Семья %(Новости%)%] (%w+_%w+)%[%d+%]:{FFFFFF} выполнил ежедневное задание, (.*)') then
+		elseif text:find(u8:decode'^{......}%[Семья %(Новости%)%] (%w+_%w+)%[%d+%]:{FFFFFF} выполнил ежедневное задание, (.*)') then
 			sendTelegramNotification(text)
-		elseif text:find('^{......}%[Семья %(Новости%)%] (%w+_%w+)%[%d+%]:{FFFFFF} (.*)') then
+		elseif text:find(u8:decode'^{......}%[Семья %(Новости%)%] (%w+_%w+)%[%d+%]:{FFFFFF} (.*)') then
 			sendTelegramNotification(text)
 		end
 	end
 	if settings.telegram.tg_rab then
-		if text:find('^%[R%] ') then
+		if text:find(u8:decode'^%[R%] ') then
 			sendTelegramNotification(text)
-		elseif text:find('^%[F%] ') then
+		elseif text:find(u8:decode'^%[F%] ') then
 			sendTelegramNotification(text)
 		end
 	end
 	if settings.telegram.tg_pay then 
-		if text:find('^Вам поступил перевод на ваш счет в размере') then
-			sendTelegramNotification(separator('[БАНК] '..text))
-		elseif text:find('^Вам пришло новое сообщение!') then
-			sendTelegramNotification('[PHONE] '..text)	
+		if text:find(u8:decode'^Вам поступил перевод на ваш счет в размере') then
+			sendTelegramNotification(separator(u8:decode'[БАНК] '..text))
+		elseif text:find(u8:decode'^Вам пришло новое сообщение!') then
+			sendTelegramNotification(u8:decode'[PHONE] '..text)	
 		end
 	end
 	if settings.telegram.tg_cr then
-		if text:find('^Вы купили (.*) %(%d шт.%) у игрока (%w+_%w+) за $(.*)') then
-			sendTelegramNotification(string.format(separator('[ЦР]'..text..'\nВаш баланс: $'..Money)))
-		elseif text:match('(%w+_%w+) купил у вас (.+), вы получили $(.*) от продажи') then
-			sendTelegramNotification(string.format(separator('[ЦР]'..text..'\nВаш баланс: $'..Money)))
+		if text:find(u8:decode'^Вы купили (.*) %(%d шт.%) у игрока (%w+_%w+) за $(.*)') then
+			sendTelegramNotification(string.format(separator(u8:decode'[ЦР]'..text..'\nВаш баланс: $'..Money)))
+		elseif text:match(u8:decode'(%w+_%w+) купил у вас (.+), вы получили $(.*) от продажи') then
+			sendTelegramNotification(string.format(separator(u8:decode'[ЦР]'..text..'\nВаш баланс: $'..Money)))
 		end
 	end
 	if settings.telegram.tg_ab then
-		if text:find('^%[Информация%] {FFFFFF}Поздравляем с продажей транспортного средства%.$') then
-			sendTelegramNotification(string.format(separator('[АБ]'..text..'\nВаш баланс: $'..Money)))
+		if text:find(u8:decode'^%[Информация%] {FFFFFF}Поздравляем с продажей транспортного средства%.$') then
+			sendTelegramNotification(string.format(separator(u8:decode'[АБ]'..text..'\nВаш баланс: $'..Money)))
 		end
 	end
-	if text:find('^%[Ошибка%] {FFFFFF}Произошла ошибка, игрок состоит в другой семье!') then
+	if text:find(u8:decode'^%[Ошибка%] {FFFFFF}Произошла ошибка, игрок состоит в другой семье!') then
 		sampSendClickTextdraw(65535)
 	end
-	if text:find('^%[Альянс%](.*)') then
-		cvet,nick,ider,vivod = text:match('^%[Альянс%] (.*) (%w+_%w+)%[(.*)]:(.*)')
-		sampAddChatMessage(intToHex(join_argb(colorchat[3] * 255, colorchat[0] * 255, colorchat[1] * 255, colorchat[2] * 255))..'[Альянс] '..cvet..' '..nick..'['..ider..']:{B9C1B8}'..vivod, -1)
+	if text:find(u8:decode'^%[Альянс%](.*)') then
+		cvet,nick,ider,vivod = text:match(u8:decode'^%[Альянс%] (.*) (%w+_%w+)%[(.*)]:(.*)')
+		sampAddChatMessage(intToHex(join_argb(colorchat[3] * 255, colorchat[0] * 255, colorchat[1] * 255, colorchat[2] * 255))..u8:decode'[Альянс] '..cvet..' '..nick..'['..ider..']:{B9C1B8}'..vivod, -1)
 		return false
 	end
 end
@@ -346,11 +348,11 @@ end
 
 function onReceivePacket(id)
     if id == 32 then
-		sendTelegramNotification('Сервер закрыл соединение.') 
+		sendTelegramNotification(u8:decode'Сервер закрыл соединение.') 
 	elseif id == 33 then 
-		sendTelegramNotification('Соединение с сервером было утеряно') 
+		sendTelegramNotification(u8:decode'Соединение с сервером было утеряно') 
 	elseif id == 36 then
-		sendTelegramNotification('Соединение с сервером было заблокировано') 
+		sendTelegramNotification(u8:decode'Соединение с сервером было заблокировано') 
 	end
 end
 
@@ -363,7 +365,7 @@ function playRandomSound()
         setAudioStreamState(stream, as_action.PLAY)
         setAudioStreamVolume(stream, settings.main.volume)
     else
-        sampAddChatMessage('Нет доступных звуков для воспроизведения.', -1)
+        sampAddChatMessage(u8:decode'Нет доступных звуков для воспроизведения.', -1)
     end
 end
 
@@ -372,10 +374,8 @@ function main()
 	if autoupdate_loaded and enable_autoupdate and Update then
         pcall(Update.check, Update.json_url, Update.prefix, Update.url)
     end
-	sampAddChatMessage(tag.."Открыть меню скрипта /" ..settings.main.menu,-1)
-    sampAddChatMessage(tag.."Успешно загружен!",-1)
-	
-	sampRegisterChatCommand('test',govno)
+	sampAddChatMessage(tag..u8:decode"Открыть меню скрипта /" ..settings.main.menu,-1)
+    sampAddChatMessage(tag..u8:decode"Успешно загружен!",-1)
 	sampRegisterChatCommand(settings.main.menu, function() WinState[0] = not WinState[0] end)
 	sampRegisterChatCommand(settings.dop.castom_dl, function()
 		active = not active
@@ -389,7 +389,7 @@ function main()
     end
     for i, v in ipairs(sounds) do
         if not doesFileExist(getWorkingDirectory()..'\\MiniHelper\\'..v['file_name']) then
-            sampAddChatMessage('Загружаю: ' .. v['file_name'], -1)
+            sampAddChatMessage(u8:decode'Загружаю: ' .. v['file_name'], -1)
             downloadUrlToFile(v['url'], getWorkingDirectory()..'\\MiniHelper\\'..v['file_name'])
         end
 
