@@ -1,4 +1,4 @@
-script_version("v1.04")
+script_version("v1.05")
 script_name("Mini Helper")
 local name = "[Mini Helper] "
 local color1 = "{B43DD9}" 
@@ -220,23 +220,23 @@ function processing_telegram_messages(result, arg) -- функция прове�
                             if text:match('Test') then
                                 sendTelegramNotification('Бот Работает!')
                             elseif text:match('^/help') then
-                                sendTelegramNotification('Мои команды:\n/fam {text} - писать в чат семьи\n/al {text} - писать в чат альянса\n/rb {text} - писать в НРП чат фракции\n/pcoff - выключить пк через 15 секунд') 	
+                                sendTelegramNotification(u8:decode'Мои команды:\n/fam {text} - писать в чат семьи\n/al {text} - писать в чат альянса\n/rb {text} - писать в НРП чат фракции\n/pcoff - выключить пк через 15 секунд') 	
 							elseif text:match('^/rb') then
-                                local arg = text:gsub('/rb ','/rb ',1)
-								sampSendChat(arg)
+                                local arg = text:gsub(u8:decode'/rb ','/rb ',1)
+								sampSendChat(u8:decode(arg))
 							elseif text:match('^/fam') then
                                 local arg = text:gsub('/fam ','/fam ',1)
-								sampSendChat(arg)	
+								sampSendChat(u8:decode(arg))	
 							elseif text:match('^/al') then
                                 local arg = text:gsub('/al ','/al ',1)
-								sampSendChat(arg)	
+								sampSendChat(u8:decode(arg))	
 							elseif text:match('^/pcoff') then -- откл пк
-								sendTelegramNotification(tag ..'Ваш ПК будет выключен через 15 секунд')
+								sendTelegramNotification(u8:decode(tag ..'Ваш ПК будет выключен через 15 секунд'))
 								os.execute('shutdown -s /f /t 15')  
                             elseif text:match('^/stats') then
-                                sendTelegramNotification(separator('Ник: '..Name..'\nДеньги: $'..Money..'\nПинг: '..ping..'\nИд: '..Id..'\nУровень: '..Lvl..'\n\n'))
+                                sendTelegramNotification(u8:decode(separator('Ник: '..Name..'\nДеньги: $'..Money..'\nПинг: '..ping..'\nИд: '..Id..'\nУровень: '..Lvl..'\n\n')))
                             else	-- если же не найдется ни одна из команд выше, выведем сообщение
-                                sendTelegramNotification('Неизвестная команда!')
+                                sendTelegramNotification(u8:decode'Неизвестная команда!')
                             end
 						end
                     end
@@ -325,9 +325,9 @@ function ev.onServerMessage(color, text)
 	end
 	if settings.telegram.tg_cr then
 		if text:find(u8:decode'^Вы купили (.*) %(%d шт.%) у игрока (%w+_%w+) за $(.*)') then
-			sendTelegramNotification(string.format(separator(u8:decode'[ЦР]'..text..'\nВаш баланс: $'..Money)))
-		elseif text:match(u8:decode'(%w+_%w+) купил у вас (.+), вы получили $(.*) от продажи') then
-			sendTelegramNotification(string.format(separator(u8:decode'[ЦР]'..text..'\nВаш баланс: $'..Money)))
+			sendTelegramNotification(separator(string.format(u8:decode'[ЦР] %s \nВаш баланс: $%s' , text, Money)))
+		elseif text:match(u8:decode'^(%w+_%w+) купил у вас (.+), вы получили $(.*) от продажи') then
+			sendTelegramNotification(separator(string.format(u8:decode'[ЦР] %s \nВаш баланс: $%s' , text, Money)))
 		end
 	end
 	if settings.telegram.tg_ab then
@@ -436,11 +436,11 @@ imgui.OnFrame(function() return WinState[0] end, function(player)
         local totalButtonHeight = 8 * buttonHeight
         local startY = (185 - totalButtonHeight) / 2
         imgui.SetCursorPosY(startY)
-        if imgui.GradientPB(tab == 1, fa.ICON_FA_BARS, 'ГЛАВНАЯ', 0.40) then tab = 1 end
-        if imgui.GradientPB(tab == 2, fa.ICON_FA_COGS, 'НАСТРОЙКИ', 0.40) then tab = 2 end
+        if imgui.GradientPB(tab == 1, fa.ICON_FA_HOME, 'ГЛАВНАЯ', 0.40) then tab = 1 end
+        if imgui.GradientPB(tab == 2, fa.ICON_FA_COG, 'НАСТРОЙКИ', 0.40) then tab = 2 end
         if imgui.GradientPB(tab == 3, fa.ICON_FA_PAPER_PLANE, 'ТГ Уведы', 0.40) then tab = 3 end
         if imgui.GradientPB(tab == 4, fa.ICON_FA_BUG, 'ПОЛЕЗНОЕ', 0.40) then tab = 4 end
-		if imgui.GradientPB(tab == 5, fa.ICON_FA_BUG, 'ЦВЕТА', 0.40) then tab = 5 end
+		if imgui.GradientPB(tab == 5, fa.ICON_FA_PALETTE, 'ЦВЕТА', 0.40) then tab = 5 end
         imgui.EndChild()
     end
 
