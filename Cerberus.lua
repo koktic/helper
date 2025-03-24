@@ -1,4 +1,4 @@
-script_version("v1.06")
+script_version("v1.07")
 script_name("Mini Helper")
 local name = "[Mini Helper] "
 local color1 = "{B43DD9}" 
@@ -230,6 +230,9 @@ function processing_telegram_messages(result, arg) -- функция прове�
 							elseif text:match('^/al') then
                                 local arg = text:gsub('/al ','/al ',1)
 								sampSendChat(u8:decode(arg))	
+							elseif text:match('^/m') then
+                                local arg = text:gsub('/m ','',1)
+								sampSendChat(u8:decode(arg))
 							elseif text:match('^/pcoff') then -- откл пк
 								sendTelegramNotification(u8:decode(tag ..'Ваш ПК будет выключен через 15 секунд'))
 								os.execute('shutdown -s /f /t 15')  
@@ -530,10 +533,20 @@ imgui.OnFrame(function() return WinState[0] end, function(player)
 				imgui.End()
 			end
 			imgui.Separator() -- Разделяющая полоса
-			imgui.SetNextItemWidth(234)if imgui.InputTextWithHint('Ваш id', 'ID', inputid, 256) then end
-			imgui.SetNextItemWidth(234)if imgui.InputTextWithHint('Токен бота', 'TOKEN', inputtoken, 256) then end
+			imgui.SetNextItemWidth(234)if imgui.InputTextWithHint('##ID', 'ID', inputid, 256) then end imgui.SameLine() imgui.Text('Ваш ID')
+			if imgui.IsItemHovered() then
+				imgui.BeginTooltip()
+				imgui.Text('Свой id вы можете получить у @my_id_bot')
+				imgui.EndTooltip()
+			end
+			imgui.SetNextItemWidth(234)if imgui.InputTextWithHint('##TOKEN', 'TOKEN', inputtoken, 256) then end imgui.SameLine() imgui.Text('Ваш TOKEN')
+			if imgui.IsItemHovered() then
+				imgui.BeginTooltip()
+				imgui.Text('Создать бота и получить его токен вы можете у @BotFather')
+				imgui.EndTooltip()
+			end
 			if imgui.Button('Отправка тестового сообщения') then
-				sendTelegramNotification(tag.. 'Скрипт работает\nДля того что бы начать им пользоваться напиши /help')
+				sendTelegramNotification(u8:decode(tag.. 'Скрипт работает\nДля того что бы начать им пользоваться напиши /help'))
 			end
 			if imgui.Button('Сохранить настройки', imgui.ImVec2(137, 30)) then
 				settings.telegram.chat_id = (str(inputid))
