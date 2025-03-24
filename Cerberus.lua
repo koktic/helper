@@ -1,4 +1,4 @@
-script_version("v1.07")
+script_version("v1.08")
 script_name("Mini Helper")
 local name = "[Mini Helper] "
 local color1 = "{B43DD9}" 
@@ -220,7 +220,7 @@ function processing_telegram_messages(result, arg) -- функция прове�
                             if text:match('Test') then
                                 sendTelegramNotification('Бот Работает!')
                             elseif text:match('^/help') then
-                                sendTelegramNotification(u8:decode'Мои команды:\n/fam {text} - писать в чат семьи\n/al {text} - писать в чат альянса\n/rb {text} - писать в НРП чат фракции\n/pcoff - выключить пк через 15 секунд') 	
+                                sendTelegramNotification(u8:decode'Мои команды:\n/fam {text} - писать в чат семьи\n/al {text} - писать в чат альянса\n/rb {text} - писать в НРП чат фракции\n/pcoff - выключить пк через 15 секунд\n/m - отправить сообщение в чат') 	
 							elseif text:match('^/rb') then
                                 local arg = text:gsub(u8:decode'/rb ','/rb ',1)
 								sampSendChat(u8:decode(arg))
