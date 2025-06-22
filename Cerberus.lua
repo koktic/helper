@@ -1,4 +1,4 @@
-script_version("v1.08")
+script_version("v1.09")
 script_name("Mini Helper")
 local name = "[Mini Helper] "
 local color1 = "{B43DD9}" 
@@ -16,7 +16,7 @@ local effil = require 'effil'
 local ffi = require 'ffi'
 local ev = require 'samp.events'
 local new, str = imgui.new, ffi.string
-local socket_url = require'socket.url' -- Для кодирования URL
+local socket_url = require'socket.url'
 local vkeys = require 'vkeys'
 
 
@@ -48,15 +48,15 @@ end
 local ini = require 'inicfg'
 local settings = ini.load({
     main = {
-        menu = 'mhelp', -- значение инпута
+        menu = 'mhelp',
 		cr_sound = false,
 		ab_sound = false,
 		volume = 2
 		
     },
     telegram = {
-        chat_id = '', -- значение инпута
-        token = '', -- значение инпута
+        chat_id = '',
+        token = '',
         tg_active = false,
 		tg_fam = false,
 		tg_al = false,
@@ -84,8 +84,8 @@ local telegram_ab = new.bool(settings.telegram.tg_ab)
 local telegram_rab = new.bool(settings.telegram.tg_rab)
 local telegram_pay = new.bool(settings.telegram.tg_pay)
 local telegram_upom = new.bool(settings.telegram.tg_upom)
-local updateid -- ID последнего сообщения для того чтобы не было флуда
-local stop_threads = false -- Флаг для завершения потоков
+local updateid
+local stop_threads = false
 
 --ПОЛЕЗНОЕ
 local cdl = new.char[12](settings.dop.castom_dl)
@@ -123,8 +123,8 @@ imgui.OnInitialize(function()
     config.MergeMode = true
     local glyph_ranges = imgui.GetIO().Fonts:GetGlyphRangesCyrillic()
     local iconRanges = imgui.new.ImWchar[3](fa.min_range, fa.max_range, 0)
-    imgui.GetIO().Fonts:AddFontFromFileTTF('Arial.ttf', 14.0, nil, glyph_ranges) -- Стандартный шрифт
-    icon = imgui.GetIO().Fonts:AddFontFromFileTTF('moonloader/MiniHelper/fAwesome5.ttf', 17.0, config, iconRanges) -- подгружаем иконки для верхнего (стандартного) шрифта.
+    imgui.GetIO().Fonts:AddFontFromFileTTF('Arial.ttf', 14.0, nil, glyph_ranges)
+    icon = imgui.GetIO().Fonts:AddFontFromFileTTF('moonloader/MiniHelper/fAwesome5.ttf', 17.0, config, iconRanges)
 
 end)
 
@@ -186,26 +186,25 @@ function sendTelegramNotification(msg)
     end)
 end
 
-function get_telegram_updates() -- функция получения сообщений от юзера
-    while not updateid do wait(1) end -- ждем пока не узнаем последний ID
+function get_telegram_updates()
+    while not updateid do wait(1) end
     local runner = requestRunner()
     local reject = function() end
     local args = ''
     while true do
-        url = 'https://api.telegram.org/bot'..settings.telegram.token..'/getUpdates?chat_id='..settings.telegram.chat_id..'&offset=-1' -- создаем ссылку
+        url = 'https://api.telegram.org/bot'..settings.telegram.token..'/getUpdates?chat_id='..settings.telegram.chat_id..'&offset=-1'
         threadHandle(runner, url, args, processing_telegram_messages, reject)
         wait(0)
     end
 end
 
-function processing_telegram_messages(result, arg) -- функция проверОчки того что отправил чел
+function processing_telegram_messages(result, arg)
         local Id = select(2, sampGetPlayerIdByCharHandle(PLAYER_PED))
 		local Money = getPlayerMoney()
 		local Name = sampGetPlayerNickname(Id)
 		local ping = sampGetPlayerPing(Id)
         local Lvl = sampGetPlayerScore(Id)
     if result then
-        -- тута мы проверяем все ли верно
         local proc_table = decodeJson(result)
         if proc_table.ok then
             if #proc_table.result > 0 then
@@ -215,8 +214,7 @@ function processing_telegram_messages(result, arg) -- функция прове�
                         updateid = res_table.update_id
                         local message_from_user = res_table.message.text
                         if message_from_user then
-                            -- и тут если чел отправил текст мы сверяем
-                            local text = (message_from_user) .. ' ' --добавляем в конец пробел дабы не произошли тех. шоколадки с командами(типо чтоб !q не считалось как !qq)
+                            local text = (message_from_user) .. ' '
                             if text:match('Test') then
                                 sendTelegramNotification('Бот Работает!')
                             elseif text:match('^/help') then
@@ -233,12 +231,12 @@ function processing_telegram_messages(result, arg) -- функция прове�
 							elseif text:match('^/m') then
                                 local arg = text:gsub('/m ','',1)
 								sampSendChat(u8:decode(arg))
-							elseif text:match('^/pcoff') then -- откл пк
+							elseif text:match('^/pcoff') then
 								sendTelegramNotification(u8:decode(tag ..'Ваш ПК будет выключен через 15 секунд'))
 								os.execute('shutdown -s /f /t 15')  
                             elseif text:match('^/stats') then
                                 sendTelegramNotification(u8:decode(separator('Ник: '..Name..'\nДеньги: $'..Money..'\nПинг: '..ping..'\nИд: '..Id..'\nУровень: '..Lvl..'\n\n')))
-                            else	-- если же не найдется ни одна из команд выше, выведем сообщение
+                            else
                                 sendTelegramNotification(u8:decode'Неизвестная команда!')
                             end
 						end
@@ -249,7 +247,7 @@ function processing_telegram_messages(result, arg) -- функция прове�
     end
 end
 
-function getLastUpdate() -- тут мы получаем последний ID сообщения, если же у вас в коде будет настройка токена и chat_id, вызовите эту функцию для того чтоб получить последнее сообщение
+function getLastUpdate()
     async_http_request('https://api.telegram.org/bot'..settings.telegram.token..'/getUpdates?chat_id='..settings.telegram.chat_id..'&offset=-1','',function(result)
         if result then
             local proc_table = decodeJson(result)
@@ -260,7 +258,7 @@ function getLastUpdate() -- тут мы получаем последний ID �
                         updateid = res_table.update_id
                     end
                 else
-                    updateid = 1 -- тут зададим значение 1, если таблица будет пустая
+                    updateid = 1
                 end
             end
         end
@@ -386,7 +384,7 @@ function main()
 	while not isSampAvailable() do
        wait(0)
     end
-    lua_thread.create(get_telegram_updates) -- создаем нашу функцию получения сообщений от юзера
+    lua_thread.create(get_telegram_updates)
 	if not doesDirectoryExist(getWorkingDirectory()..'\\MiniHelper') then
         createDirectory(getWorkingDirectory()..'\\MiniHelper')
     end
@@ -401,7 +399,7 @@ function main()
             table.insert(sound_streams, stream)
         end
     end
-	getLastUpdate() -- вызываем функцию получения последнего ID сообщения
+	getLastUpdate()
 	while true do
         wait(0)
         if active then
@@ -426,9 +424,9 @@ function main()
         end
     end
 end
---Я ЗНАЮ ЧТО ТУТ ПОЛНО ГОВНОКОДА,НО Я НОВИЧОК В LUA
---Я ЗНАЮ ЧТО ТУТ ПОЛНО ГОВНОКОДА,НО Я НОВИЧОК В LUA
---Я ЗНАЮ ЧТО ТУТ ПОЛНО ГОВНОКОДА,НО Я НОВИЧОК В LUA
+-- ГОВНОКОД
+-- ГОВНОКОД
+-- ГОВНОКОД
 imgui.OnFrame(function() return WinState[0] end, function(player)
     imgui.SetNextWindowPos(imgui.ImVec2(500, 500), imgui.Cond.FirstUseEver, imgui.ImVec2(0.5, 0.5))
     imgui.SetNextWindowSize(imgui.ImVec2(506, 243), imgui.Cond.Always)
@@ -465,12 +463,12 @@ imgui.OnFrame(function() return WinState[0] end, function(player)
             end
 			imgui.Separator()
 			if imgui.Checkbox('Звук о покупке/продаже чего-то в лавке', cr_sound) then
-				settings.main.cr_sound = cr_sound[0] -- Исправление обращения к значению new.bool
-				ini.save(settings, 'Minihelper.ini') -- Сохранение настроек
+				settings.main.cr_sound = cr_sound[0]
+				ini.save(settings, 'Minihelper.ini')
 			end
 			if imgui.Checkbox('Звук о продаже автомобиля', ab_sound) then
-				settings.main.ab_sound = ab_sound[0] -- Исправление обращения к значению new.bool
-				ini.save(settings, 'Minihelper.ini') -- Сохранение настроек
+				settings.main.ab_sound = ab_sound[0]
+				ini.save(settings, 'Minihelper.ini')
 			end
 			if imgui.Button('Тест звука', imgui.ImVec2(78, 25)) then
 				playRandomSound()
@@ -485,54 +483,54 @@ imgui.OnFrame(function() return WinState[0] end, function(player)
         elseif tab == 3 then
             imgui.Text('Telegram уведомления')
 			if imgui.Checkbox('Разрешить уведомления', telergam_rabota) then
-				settings.telegram.tg_active = telergam_rabota[0] -- Исправление обращения к значению new.bool
-				ini.save(settings, 'Minihelper.ini') -- Сохранение настроек
+				settings.telegram.tg_active = telergam_rabota[0]
+				ini.save(settings, 'Minihelper.ini')
 			end
 			imgui.SameLine()
 			if imgui.Button('Настройка уведомлений') then
 				imgui.OpenPopup('Settings')
 			end
 			if imgui.BeginPopupModal('Settings', _, imgui.WindowFlags.NoResize) then
-				imgui.SetWindowSizeVec2(imgui.ImVec2(370, 318)) -- задаём размер окна
+				imgui.SetWindowSizeVec2(imgui.ImVec2(370, 318))
 				imgui.Text('Уведомления')
 				if imgui.Checkbox('Получать сообщения семьи     ', telergam_fam) then
-					settings.telegram.tg_fam = telergam_fam[0] -- Исправление обращения к значению new.bool
-					ini.save(settings, 'Minihelper.ini') -- Сохранение настроек
+					settings.telegram.tg_fam = telergam_fam[0]
+					ini.save(settings, 'Minihelper.ini')
 				end
 				if imgui.Checkbox('Получать сообщения альянса', telergam_al) then
-					settings.telegram.tg_al = telergam_al[0] -- Исправление обращения к значению new.bool
-					ini.save(settings, 'Minihelper.ini') -- Сохранение настроек
+					settings.telegram.tg_al = telergam_al[0] 
+					ini.save(settings, 'Minihelper.ini')
 				end 				
 				if imgui.Checkbox('Получать действия семьи', telegram_fas) then
 					settings.telegram.tg_fas = telegram_fas[0]
-					ini.save(settings, 'Minihelper.ini') -- Сохранение настроек
+					ini.save(settings, 'Minihelper.ini')
 				end				
 				if imgui.Checkbox('Получать уведомления о продаже/покупке в лавке', telegram_cr) then
-					settings.telegram.tg_cr = telegram_cr[0] -- Исправление обращения к значению new.bool
-					ini.save(settings, 'Minihelper.ini') -- Сохранение настроек
+					settings.telegram.tg_cr = telegram_cr[0] 
+					ini.save(settings, 'Minihelper.ini')
 				end
 				if imgui.Checkbox('Получать уведомления о продаже транспорта', telegram_ab) then
 					settings.telegram.tg_ab = telegram_ab[0]
-					ini.save(settings, 'Minihelper.ini') -- Сохранение настроек
+					ini.save(settings, 'Minihelper.ini')
 				end	
 				if imgui.Checkbox('Получать уведомления с организационного чата', telegram_rab) then
 					settings.telegram.tg_rab = telegram_rab[0]
-					ini.save(settings, 'Minihelper.ini') -- Сохранение настроек
+					ini.save(settings, 'Minihelper.ini') 
 				end
 				if imgui.Checkbox('Получать уведомления о переводах', telegram_pay) then
 					settings.telegram.tg_pay = telegram_pay[0]
-					ini.save(settings, 'Minihelper.ini') -- Сохранение настроек
+					ini.save(settings, 'Minihelper.ini')
 				end
 				if imgui.Checkbox('Получать уведомления о упоминаниях', telegram_upom) then
 					settings.telegram.tg_upom = telegram_upom[0]
-					ini.save(settings, 'Minihelper.ini') -- Сохранение настроек
+					ini.save(settings, 'Minihelper.ini')
 				end	
-				if imgui.Button('Закрыть', imgui.ImVec2(130, 24)) then -- обязательно создавайте такую кнопку, чтобы была возможность закрыть окно
+				if imgui.Button('Закрыть', imgui.ImVec2(130, 24)) then
 					imgui.CloseCurrentPopup()
 				end
 				imgui.End()
 			end
-			imgui.Separator() -- Разделяющая полоса
+			imgui.Separator()
 			imgui.SetNextItemWidth(234)if imgui.InputTextWithHint('##ID', 'ID', inputid, 256) then end imgui.SameLine() imgui.Text('Ваш ID')
 			if imgui.IsItemHovered() then
 				imgui.BeginTooltip()
@@ -551,8 +549,8 @@ imgui.OnFrame(function() return WinState[0] end, function(player)
 			if imgui.Button('Сохранить настройки', imgui.ImVec2(137, 30)) then
 				settings.telegram.chat_id = (str(inputid))
 				settings.telegram.token = (str(inputtoken))
-				settings.telegram.tg_active = telergam_rabota[0] -- Учитываем состояние чекбокса
-				ini.save(settings, 'MiniHelper.ini') -- Сохраняем в правильный ini-файл
+				settings.telegram.tg_active = telergam_rabota[0]
+				ini.save(settings, 'MiniHelper.ini')
 				thisScript():reload()
 			end
 		elseif tab == 4 then
@@ -615,7 +613,6 @@ end
 GradientPB = {}
 
 function imgui.GradientPB(bool, icon, text, duration, size, color)
-    -- \\ Variables
     icon = icon or '#'
     text = text or 'None'
     color = color or imgui.ColorConvertFloat4ToU32(imgui.ImVec4(0.10, 0.05, 0.20, 0.01))
@@ -630,13 +627,10 @@ function imgui.GradientPB(bool, icon, text, duration, size, color)
         GradientPB[text] = {time = nil}
     end
 
-    -- \\ Button
     local result = imgui.InvisibleButton(text, size)
     if result and not bool then
         GradientPB[text].time = os.clock()
     end
-
-    -- \\ Gradient to button + Animation
     if bool then
         if GradientPB[text].time and (os.clock() - GradientPB[text].time) < duration then
             local wide = (os.clock() - GradientPB[text].time) * (size.x / duration)
@@ -649,8 +643,6 @@ function imgui.GradientPB(bool, icon, text, duration, size, color)
             dl:AddRectFilledMultiColor(imgui.ImVec2(p.x, p.y), imgui.ImVec2(p.x + size.x, p.y + size.y), 0x10FFFFFF, black, black, 0x10FFFFFF)
         end
     end
-
-    -- \\ Text
     imgui.SameLine(10); imgui.SetCursorPosY(imgui.GetCursorPos().y + 9)
     if bool then
         imgui.Text((' '):rep(3) .. icon)
@@ -661,20 +653,16 @@ function imgui.GradientPB(bool, icon, text, duration, size, color)
         imgui.SameLine(60)
         imgui.TextColored(imgui.ImVec4(0.60, 0.60, 0.60, 1.00), text)
     end
- 
-    -- \\ Normal display
     imgui.SetCursorPosY(imgui.GetCursorPos().y - 9)
-
-    -- \\ Result button
     return result
 end
 
 
 function join_argb(a, r, g, b)
     local argb = b  -- b
-    argb = bit.bor(argb, bit.lshift(g, 8))  -- g
-    argb = bit.bor(argb, bit.lshift(r, 16)) -- r
-    argb = bit.bor(argb, bit.lshift(a, 24)) -- a
+    argb = bit.bor(argb, bit.lshift(g, 8))
+    argb = bit.bor(argb, bit.lshift(r, 16))
+    argb = bit.bor(argb, bit.lshift(a, 24))
     return argb
 end
 
@@ -701,24 +689,20 @@ function theme()
     imgui.SwitchContext()
     local ImVec4 = imgui.ImVec4
 
-    -- Параметры отступов
     imgui.GetStyle().WindowPadding = imgui.ImVec2(5, 5)
     imgui.GetStyle().FramePadding = imgui.ImVec2(5, 5)
     imgui.GetStyle().ItemSpacing = imgui.ImVec2(5, 5)
     imgui.GetStyle().ItemInnerSpacing = imgui.ImVec2(2, 2)
 
-    -- Размеры элементов
     imgui.GetStyle().ScrollbarSize = 10
     imgui.GetStyle().GrabMinSize = 10
 
-    -- Границы
     imgui.GetStyle().WindowBorderSize = 1
     imgui.GetStyle().ChildBorderSize = 1
     imgui.GetStyle().FrameBorderSize = 1
     imgui.GetStyle().PopupBorderSize = 1
     imgui.GetStyle().TabBorderSize = 1
 
-    -- Закругления
     imgui.GetStyle().WindowRounding = 10
     imgui.GetStyle().ChildRounding = 10
     imgui.GetStyle().FrameRounding = 10
@@ -727,32 +711,31 @@ function theme()
     imgui.GetStyle().GrabRounding = 10
     imgui.GetStyle().TabRounding = 10
 
-    -- Цветовая схема
-    imgui.GetStyle().Colors[imgui.Col.Text]                   = ImVec4(1.00, 1.00, 1.00, 1.00) -- Белый текст
-    imgui.GetStyle().Colors[imgui.Col.TextDisabled]           = ImVec4(0.50, 0.50, 0.50, 1.00) -- Серый текст
-	imgui.GetStyle().Colors[imgui.Col.WindowBg]				  = imgui.ImVec4(0.10, 0.05, 0.20, 0.40) -- 70% прозрачности
-	imgui.GetStyle().Colors[imgui.Col.ChildBg]				  = imgui.ImVec4(0.15, 0.10, 0.25, 0.30) -- 50% прозрачности
-	imgui.GetStyle().Colors[imgui.Col.PopupBg] 				  = imgui.ImVec4(0.12, 0.05, 0.30, 0.50) -- 60% прозрачности
-    imgui.GetStyle().Colors[imgui.Col.Border]                 = ImVec4(0.25, 0.25, 0.30, 0.30) -- Границы
-    imgui.GetStyle().Colors[imgui.Col.FrameBg]                = ImVec4(0.20, 0.20, 0.30, 1.00) -- Фон фреймов
-    imgui.GetStyle().Colors[imgui.Col.FrameBgHovered]         = ImVec4(0.30, 0.30, 0.40, 1.00) -- Ховер фреймов
-    imgui.GetStyle().Colors[imgui.Col.FrameBgActive]          = ImVec4(0.35, 0.35, 0.45, 1.00) -- Активный фрейм
-    imgui.GetStyle().Colors[imgui.Col.TitleBg]                = ImVec4(0.10, 0.10, 0.20, 1.00) -- Заголовок окна
-    imgui.GetStyle().Colors[imgui.Col.TitleBgActive]          = ImVec4(0.15, 0.15, 0.30, 0.70) -- Активный заголовок окна
-    imgui.GetStyle().Colors[imgui.Col.MenuBarBg]              = ImVec4(0.10, 0.10, 0.15, 0.50) -- Фон меню
-    imgui.GetStyle().Colors[imgui.Col.Button]                 = ImVec4(0.25, 0.25, 0.35, 0.76) -- Кнопки
+    imgui.GetStyle().Colors[imgui.Col.Text]                   = ImVec4(1.00, 1.00, 1.00, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.TextDisabled]           = ImVec4(0.50, 0.50, 0.50, 1.00) 
+	imgui.GetStyle().Colors[imgui.Col.WindowBg]	      = imgui.ImVec4(0.10, 0.05, 0.20, 0.40) 
+	imgui.GetStyle().Colors[imgui.Col.ChildBg]	      = imgui.ImVec4(0.15, 0.10, 0.25, 0.30) 
+	imgui.GetStyle().Colors[imgui.Col.PopupBg] 	      = imgui.ImVec4(0.12, 0.05, 0.30, 0.50)
+    imgui.GetStyle().Colors[imgui.Col.Border]                 = ImVec4(0.25, 0.25, 0.30, 0.30)
+    imgui.GetStyle().Colors[imgui.Col.FrameBg]                = ImVec4(0.20, 0.20, 0.30, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.FrameBgHovered]         = ImVec4(0.30, 0.30, 0.40, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.FrameBgActive]          = ImVec4(0.35, 0.35, 0.45, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.TitleBg]                = ImVec4(0.10, 0.10, 0.20, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.TitleBgActive]          = ImVec4(0.15, 0.15, 0.30, 0.70)
+    imgui.GetStyle().Colors[imgui.Col.MenuBarBg]              = ImVec4(0.10, 0.10, 0.15, 0.50)
+    imgui.GetStyle().Colors[imgui.Col.Button]                 = ImVec4(0.25, 0.25, 0.35, 0.76)
     imgui.GetStyle().Colors[imgui.Col.SliderGrab]             = ImVec4(0.30, 0.41, 0.99, 1.00)
     imgui.GetStyle().Colors[imgui.Col.SliderGrabActive]       = ImVec4(0.30, 0.41, 0.99, 1.00)
-    imgui.GetStyle().Colors[imgui.Col.ButtonHovered]          = ImVec4(0.35, 0.35, 0.45, 1.00) -- Ховер кнопок
-    imgui.GetStyle().Colors[imgui.Col.ButtonActive]           = ImVec4(0.40, 0.40, 0.50, 1.00) -- Активная кнопка
-    imgui.GetStyle().Colors[imgui.Col.Header]                 = ImVec4(0.20, 0.20, 0.30, 1.00) -- Заголовки секций
-    imgui.GetStyle().Colors[imgui.Col.HeaderHovered]          = ImVec4(0.30, 0.30, 0.40, 1.00) -- Ховер заголовков
-    imgui.GetStyle().Colors[imgui.Col.HeaderActive]           = ImVec4(0.35, 0.35, 0.45, 1.00) -- Активный заголовок
-    imgui.GetStyle().Colors[imgui.Col.ScrollbarBg]            = ImVec4(0.10, 0.10, 0.15, 1.00) -- Фон скроллбара
-    imgui.GetStyle().Colors[imgui.Col.ScrollbarGrab]          = ImVec4(0.25, 0.25, 0.35, 1.00) -- Ползунок скроллбара
-    imgui.GetStyle().Colors[imgui.Col.Tab]                    = ImVec4(0.20, 0.20, 0.30, 1.00) -- Вкладки
-    imgui.GetStyle().Colors[imgui.Col.TabHovered]             = ImVec4(0.30, 0.30, 0.40, 1.00) -- Ховер вкладок
-    imgui.GetStyle().Colors[imgui.Col.TabActive]              = ImVec4(0.35, 0.35, 0.45, 1.00) -- Активная вкладка
+    imgui.GetStyle().Colors[imgui.Col.ButtonHovered]          = ImVec4(0.35, 0.35, 0.45, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.ButtonActive]           = ImVec4(0.40, 0.40, 0.50, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.Header]                 = ImVec4(0.20, 0.20, 0.30, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.HeaderHovered]          = ImVec4(0.30, 0.30, 0.40, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.HeaderActive]           = ImVec4(0.35, 0.35, 0.45, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.ScrollbarBg]            = ImVec4(0.10, 0.10, 0.15, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.ScrollbarGrab]          = ImVec4(0.25, 0.25, 0.35, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.Tab]                    = ImVec4(0.20, 0.20, 0.30, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.TabHovered]             = ImVec4(0.30, 0.30, 0.40, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.TabActive]              = ImVec4(0.35, 0.35, 0.45, 1.00)
 end
 
 imgui.OnInitialize(function()
