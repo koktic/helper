@@ -1,4 +1,4 @@
-script_version("v1.09")
+script_version("v1.10")
 script_name("Mini Helper")
 local name = "[Mini Helper] "
 local color1 = "{B43DD9}" 
@@ -89,6 +89,8 @@ local stop_threads = false
 
 --ПОЛЕЗНОЕ
 local cdl = new.char[12](settings.dop.castom_dl)
+local autoCookEnabled = new.bool(false)
+local cookThread = nil
 
 --ЦВЕТА
 local colorchat = imgui.new.float[4](settings.color_chat)
@@ -280,7 +282,7 @@ function ev.onServerMessage(color, text)
 		end
 	end
 	if settings.telegram.tg_fam  then
-		if text:find(u8:decode'^{......}%[Семья%](.*) (%w+_%w+)%[%d+%]:(.*)') then
+		if text:find(u8:decode'^{......}%[Семья%] (.*) (%w+_%w+)%[%d+%]:(.*)') then
 			sendTelegramNotification(text)
 		end
 	end
@@ -344,8 +346,38 @@ function ev.onServerMessage(color, text)
 		sampAddChatMessage(intToHex(join_argb(colorchat[3] * 255, colorchat[0] * 255, colorchat[1] * 255, colorchat[2] * 255))..u8:decode'[Альянс] '..cvet..' '..nick..'['..ider..']:{B9C1B8}'..vivod, -1)
 		return false
 	end
+	-- Остановка авто-готовки при ошибках (нет мяса или нет костра)
+	if autoCookEnabled[0] and (
+		text:find(u8:decode'[Ошибка] {FFFFFF}У вас нет сырого мяса оленины!', 1, true)
+		or text:find(u8:decode'[Ошибка] {ffffff}Возле вас нет костра!', 1, true)
+	) then
+		autoCookEnabled[0] = false
+		if cookThread then
+			cookThread:terminate()
+			cookThread = nil
+		end
+		local reason = u8:decode'Нету мяса'
+		if text:find(u8:decode'Возле вас нет костра!', 1, true) then
+			reason = u8:decode'Нет костра'
+		end
+		sampAddChatMessage(u8:decode'{FF6347}[AutoCook] Скрипт остановлен! Причина: ' .. reason, -1)
+		return false
+	end
+	if text:find(u8:decode'Вы успешно приготовили 1 жареный кусок мяса оленины! Чтобы покушать, используйте: /eat или /jmeat') then 
+		if text:find(u8:decode'Вы успешно приготовили 1 жареный кусок мяса оленины! Чтобы покушать, используйте: /eat или /jmeat') then 
+		return false
+		end
+	end
 end
 
+function sampev.onShowDialog(id, style, title, btn1, btn2, text)
+    if autoCookEnabled[0] and id == 9081 then
+        lua_thread.create(function()
+            wait(200)
+            sampSendDialogResponse(id, 1, 1, '') -- РІС‹Р±РёСЂР°РµС‚ РІС‚РѕСЂРѕР№ РїСѓРЅРєС‚ (РјСЏСЃРѕ РѕР»РµРЅРёРЅС‹)
+        end)
+    end
+end
 
 function onReceivePacket(id)
     if id == 32 then
@@ -560,12 +592,27 @@ imgui.OnFrame(function() return WinState[0] end, function(player)
                 ini.save(settings, 'MiniHelper.ini')
                 thisScript():reload()
             end
+			if imgui.Checkbox('Авто. готовка мяса', autoCookEnabled) then
+				if autoCookEnabled[0] and not cookThread then
+					cookThread = lua_thread.create(function()
+						while autoCookEnabled[0] do
+							sampSendChat('/cook')
+							wait(6000)
+						end
+					end)
+				else
+					if cookThread and not autoCookEnabled[0] then
+						cookThread:terminate()
+						cookThread = nil
+					end
+				end
+			end
 		elseif tab == 5 then
         if imgui.ColorEdit4('Цвет чата альянса', colorchat, imgui.ColorEditFlags.NoAlpha) then
 			local clr = {colorchat[0], colorchat[1], colorchat[2], colorchat[3]}
 			settings.color_chat = clr
 			ini.save(settings, 'MiniHelper.ini')
-		end
+			end
         end
         imgui.EndChild()
     end
