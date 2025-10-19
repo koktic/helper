@@ -1,4 +1,4 @@
-script_version("v1.10")
+script_version("v1.11")
 script_name("Mini Helper")
 local name = "[Mini Helper] "
 local color1 = "{B43DD9}" 
@@ -190,15 +190,23 @@ end
 
 function get_telegram_updates()
     while not updateid do wait(1) end
-    local runner = requestRunner()
-    local reject = function() end
-    local args = ''
     while true do
-        url = 'https://api.telegram.org/bot'..settings.telegram.token..'/getUpdates?chat_id='..settings.telegram.chat_id..'&offset=-1'
-        threadHandle(runner, url, args, processing_telegram_messages, reject)
-        wait(0)
+        local ok, err = pcall(function()
+            local runner = requestRunner()
+            local reject = function() end
+            local args = ''
+            local url = 'https://api.telegram.org/bot'..settings.telegram.token..'/getUpdates?chat_id='..settings.telegram.chat_id..'&offset=-1'
+            threadHandle(runner, url, args, processing_telegram_messages, reject)
+        end)
+        if not ok then
+            sendTelegramNotification('[Mini Helper] Ошибка в Telegram-потоке: '..tostring(err)'\n Перезапуск...')
+            wait(5000) -- ждём 5 секунд перед перезапуском
+            thisScript():reload()
+        end
+        wait(2000) -- безопасная пауза между запросами (2 сек)
     end
 end
+
 
 function processing_telegram_messages(result, arg)
         local Id = select(2, sampGetPlayerIdByCharHandle(PLAYER_PED))
