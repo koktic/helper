@@ -1,4 +1,4 @@
-script_version("v1.11")
+script_version("v1.12")
 script_name("Mini Helper")
 local name = "[Mini Helper] "
 local color1 = "{B43DD9}" 
@@ -63,6 +63,7 @@ local settings = ini.load({
 		tg_fas = false,
 		tg_cr = false,
 		tg_ab = false,
+		tg_rent = false,
 		tg_rab = false,
 		tg_pay = false,
 		tg_upom = false,
@@ -84,8 +85,11 @@ local telegram_ab = new.bool(settings.telegram.tg_ab)
 local telegram_rab = new.bool(settings.telegram.tg_rab)
 local telegram_pay = new.bool(settings.telegram.tg_pay)
 local telegram_upom = new.bool(settings.telegram.tg_upom)
+local telegram_rent = new.bool(settings.telegram.tg_rent)
 local updateid
 local stop_threads = false
+local last_telegram_response_time = os.clock()
+local telegram_timeout = 60 -- таймаут в секундах (60 секунд без ответа = проблема)
 
 --ПОЛЕЗНОЕ
 local cdl = new.char[12](settings.dop.castom_dl)
@@ -144,10 +148,17 @@ function requestRunner()
     end)
 end
 
-function threadHandle(runner, url, args, resolve, reject)
+function threadHandle(runner, url, args, resolve, reject, timeout)
+    timeout = timeout or 30 -- таймаут по умолчанию 30 секунд
+    local start_time = os.clock()
     local t = runner(url, args)
     local r = t:get(0)
     while not r do
+        if os.clock() - start_time > timeout then
+            t:cancel(0)
+            reject("timeout")
+            return
+        end
         r = t:get(0)
         wait(0)
     end
@@ -190,19 +201,64 @@ end
 
 function get_telegram_updates()
     while not updateid do wait(1) end
+    local timeout_notified = false
     while true do
+        -- Проверяем таймаут
+        local time_since_last_response = os.clock() - last_telegram_response_time
+        if time_since_last_response > telegram_timeout and not timeout_notified then
+            timeout_notified = true
+            -- Выводим детали в консоль
+            print(u8:decode('[Mini Helper] Ошибка: Telegram не отвечает более ' .. telegram_timeout .. ' секунд. Последний ответ был ' .. string.format('%.1f', time_since_last_response) .. ' секунд назад.'))
+            -- Краткое сообщение в чат
+            sampAddChatMessage(tag..u8:decode'Ошибка скрипта! Перезапуск...', -1)
+            -- Пытаемся отправить в Telegram напрямую (может не сработать, но попробуем)
+            pcall(function()
+                local notify_msg = u8:decode'[Mini Helper] TG не отвечает, перезагрузка скрипта...'
+                local notify_url = 'https://api.telegram.org/bot' .. settings.telegram.token .. '/sendMessage?chat_id=' .. settings.telegram.chat_id .. '&text=' .. encodeUrl(notify_msg)
+                downloadUrlToFile(notify_url)
+            end)
+            wait(3000)
+            thisScript():reload()
+            return
+        end
+        
         local ok, err = pcall(function()
             local runner = requestRunner()
-            local reject = function() end
+            local reject = function(err_msg)
+                -- При ошибке или таймауте не обновляем время ответа
+                if err_msg == "timeout" then
+                    -- Таймаут обрабатывается выше
+                end
+            end
+            local resolve_wrapper = function(result)
+                -- Обновляем время при любом успешном ответе от API (даже если это ошибка API)
+                last_telegram_response_time = os.clock()
+                processing_telegram_messages(result)
+            end
             local args = ''
             local url = 'https://api.telegram.org/bot'..settings.telegram.token..'/getUpdates?chat_id='..settings.telegram.chat_id..'&offset=-1'
-            threadHandle(runner, url, args, processing_telegram_messages, reject)
+            threadHandle(runner, url, args, resolve_wrapper, reject, 25) -- таймаут 25 секунд
         end)
         if not ok then
-            sendTelegramNotification('[Mini Helper] Ошибка в Telegram-потоке: '..tostring(err)'\n Перезапуск...')
+            -- Выводим детали ошибки в консоль
+            print(u8:decode('[Mini Helper] Ошибка в Telegram-потоке: '..tostring(err)))
+            -- Краткое сообщение в чат
+            sampAddChatMessage(tag..u8:decode'Ошибка скрипта! Перезапуск...', -1)
+            -- Пытаемся отправить в Telegram
+            pcall(function()
+                local error_msg = '[Mini Helper] Ошибка в Telegram-потоке: '..tostring(err)..'\n Перезапуск...'
+                sendTelegramNotification(error_msg)
+            end)
             wait(5000) -- ждём 5 секунд перед перезапуском
             thisScript():reload()
+            return
         end
+        
+        -- Если запрос прошел успешно, сбрасываем флаг уведомления о таймауте
+        if time_since_last_response < telegram_timeout then
+            timeout_notified = false
+        end
+        
         wait(2000) -- безопасная пауза между запросами (2 сек)
     end
 end
@@ -260,6 +316,8 @@ end
 function getLastUpdate()
     async_http_request('https://api.telegram.org/bot'..settings.telegram.token..'/getUpdates?chat_id='..settings.telegram.chat_id..'&offset=-1','',function(result)
         if result then
+            -- Обновляем время последнего успешного ответа
+            last_telegram_response_time = os.clock()
             local proc_table = decodeJson(result)
             if proc_table.ok then
                 if #proc_table.result > 0 then
@@ -282,10 +340,10 @@ function ev.onServerMessage(color, text)
 	local Name = sampGetPlayerNickname(Id)
 	local chatstring = sampGetChatString(99)
 	if settings.telegram.tg_upom then
-		if text:find(u8:decode'@'..Id) then
+		if text:find(u8:decode'@'..Id..' ') then
 			sendTelegramNotification(u8:decode"[Упоминание]\n" ..text)
 		end
-		if text:find(u8:decode'@'..Name) then
+		if text:find(u8:decode'@'..Name..' ') then
 			sendTelegramNotification(u8:decode"[Упоминание]\n" ..text)
 		end
 	end
@@ -311,6 +369,11 @@ function ev.onServerMessage(color, text)
 			playRandomSound()
 		end
 	end
+	if settings.main.tg_rent then
+		if text:find(u8:decode'^{8A2BE2}%[Arizona Rent%] {FFFFFF}Вы успешно сдали комнату в доме №(%d) в аренду игроку (%w+_%w+), на (%d) ч. за $(.+)!') then
+			sendTelegramNotification(text)
+		end
+	end
 	if settings.telegram.tg_fas then
 		if text:find(u8:decode'^{......}%[Семья %(Новости%)%] (%w+_%w+)%[%d+%]:{B9C1B8} (.*)') then
 			sendTelegramNotification(text)
@@ -330,7 +393,7 @@ function ev.onServerMessage(color, text)
 	if settings.telegram.tg_pay then 
 		if text:find(u8:decode'^Вам поступил перевод на ваш счет в размере') then
 			sendTelegramNotification(separator(u8:decode'[БАНК] '..text))
-		elseif text:find(u8:decode'^Вам пришло новое сообщение!') then
+		elseif text:find(u8:decode'^Вам пришло новое сообщение!(.*)') then
 			sendTelegramNotification(u8:decode'[PHONE] '..text)	
 		end
 	end
@@ -549,6 +612,10 @@ imgui.OnFrame(function() return WinState[0] end, function(player)
 					settings.telegram.tg_cr = telegram_cr[0] 
 					ini.save(settings, 'Minihelper.ini')
 				end
+				if imgui.Checkbox('Получать уведомления о сдачи команты', telegram_ab) then
+					settings.telegram.tg_rent = telegram_rent[0]
+					ini.save(settings, 'Minihelper.ini')
+				end	
 				if imgui.Checkbox('Получать уведомления о продаже транспорта', telegram_ab) then
 					settings.telegram.tg_ab = telegram_ab[0]
 					ini.save(settings, 'Minihelper.ini')
