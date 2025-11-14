@@ -1,4 +1,4 @@
-script_version("v1.12")
+script_version("v1.13")
 script_name("Mini Helper")
 local name = "[Mini Helper] "
 local color1 = "{B43DD9}" 
@@ -612,7 +612,7 @@ imgui.OnFrame(function() return WinState[0] end, function(player)
 					settings.telegram.tg_cr = telegram_cr[0] 
 					ini.save(settings, 'Minihelper.ini')
 				end
-				if imgui.Checkbox('Получать уведомления о сдачи команты', telegram_ab) then
+				if imgui.Checkbox('Получать уведомления о сдачи команты', telegram_rent) then
 					settings.telegram.tg_rent = telegram_rent[0]
 					ini.save(settings, 'Minihelper.ini')
 				end	
