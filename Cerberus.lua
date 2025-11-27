@@ -1,4 +1,4 @@
-script_version("v1.14")
+script_version("v1.15")
 script_name("Mini Helper")
 local name = "[Mini Helper] "
 local color1 = "{B43DD9}" 
@@ -352,7 +352,7 @@ function ev.onServerMessage(color, text)
 		end
 	end
 	if settings.telegram.tg_arenda then
-		if text:find(u8:decode'%[Аренда авто%] (%w+_%w+) %[ID: (%d+)%] арендовал у вас (.*) на (%d+)ч за (.*)$') then
+		if text:find(u8:decode'^%[Аренда авто%] (%w+_%w+) %[ID: (%d+)%] арендовал у вас (.*) на (%d+)ч за (.*)$') then
 		local nick,id,item,hours,summa = text:match(u8:decode'%[Аренда авто%] (%w+_%w+) %[ID: (%d+)%] арендовал у вас (.*) на (%d+)ч за (.*)$ %(в час(.*)%)')
 			if nick and id and item and hours and summa then 
 			sendTelegramNotification(separator(string.format(u8:decode'[Аренда] %s[%s] арендовал %s на %sч за %s', nick,id,item,hours,summa)))
@@ -846,3 +846,4 @@ imgui.OnInitialize(function()
     theme()
 end)
 	
+
