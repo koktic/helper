@@ -1,4 +1,4 @@
-script_version("v1.15")
+script_version("v1.16")
 script_name("Mini Helper")
 local name = "[Mini Helper] "
 local color1 = "{B43DD9}" 
@@ -121,6 +121,10 @@ local sounds = {
         file_name = 'sound.mp3',
     },
 	{
+        url = 'https://raw.githubusercontent.com/koktic/helper/refs/heads/main/items_num.lua',
+        file_name = 'items_num.lua',
+    },
+	{
 		url = 'https://dl.dropboxusercontent.com/s/zgfq5juurf7yvru/fAwesome5.ttf',
 		file_name = 'fAwesome5.ttf',
 	},
@@ -177,10 +181,33 @@ function async_http_request(url, args, resolve, reject)
     end)
 end
 
-function encodeUrl(str)
+function encodeUrl(str, alreadyUtf8)
     str = str:gsub(' ', '%+')
     str = str:gsub('\n', '%%0A')
-    return u8(str)
+    return alreadyUtf8 and str or u8(str)
+end
+
+local items_names = {}
+local function loadItemsData()
+    local path = getWorkingDirectory() .. "\\MiniHelper\\items_num.lua"
+    if doesFileExist(path) then
+        local chunk, err = loadfile(path)
+        if chunk then
+            local ok, data = pcall(chunk)
+            if ok and data and type(data) == "table" then
+                items_names = data
+                return
+            end
+        end
+    end
+end
+
+local function replaceItemCodes(text)
+    if not text or type(text) ~= "string" then return text end
+    return text:gsub(":item(%d+):", function(id)
+        local num = tonumber(id)
+        return (num and items_names[num]) or items_names[id] or (":item" .. id .. ":")
+    end)
 end
 
 function sendTelegramNotification(msg, keyboard)
@@ -188,8 +215,10 @@ function sendTelegramNotification(msg, keyboard)
         return
     end
 
+    msg = u8(msg)
+    msg = replaceItemCodes(msg)
     msg = msg:gsub('{......}', '')
-    msg = encodeUrl(msg)
+    msg = encodeUrl(msg, true)
     
     local reply_markup = keyboard or '{"keyboard": [["👤 Статистика"], ["💬 | Семейный чат", "📝 Команды"]] , "resize_keyboard": true}'
     
@@ -453,6 +482,7 @@ end
 
 function main()
     while not isSampAvailable() do wait(0) end
+	loadItemsData()
 	if autoupdate_loaded and enable_autoupdate and Update then
         pcall(Update.check, Update.json_url, Update.prefix, Update.url)
     end
@@ -461,6 +491,17 @@ function main()
 	sampRegisterChatCommand(settings.main.menu, function() WinState[0] = not WinState[0] end)
 	sampRegisterChatCommand(settings.dop.castom_dl, function()
 		active = not active
+	end)
+	sampRegisterChatCommand("fixitems", function()
+		loadItemsData()
+		local clip = imgui.GetClipboardText and imgui.GetClipboardText()
+		if clip and clip ~= "" then
+			local fixed = replaceItemCodes(clip):gsub("{......}", "")
+			if imgui.SetClipboardText then imgui.SetClipboardText(fixed) end
+			sampAddChatMessage(tag .. u8:decode"Буфер обмена: коды :itemXXX: заменены на названия. Вставь (Ctrl+V) в ТГ.", -1)
+		else
+			sampAddChatMessage(tag .. u8:decode"Буфер обмена пуст. Скопируй текст из чата, потом /fixitems", -1)
+		end
 	end)
 	while not isSampAvailable() do
        wait(0)
