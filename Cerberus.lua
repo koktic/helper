@@ -1,4 +1,4 @@
-script_version("v1.17")
+script_version("v1.18")
 script_name("Mini Helper")
 local tag = "[Mini Helper] "
 
@@ -1329,14 +1329,14 @@ function ev.onServerMessage(color, text)
 			sendVkontakteNotification(separator(string.format(u8:decode'[АБ] %s \nВаш баланс: $%s' , text, Money)))
 		end
 	end
-	if text:find(u8:decode'^%[Альянс%](.*)') then
+	if text:find(u8:decode'^%[Альянс%](.*)') and not text:find(u8:decode':item(.*):') then
 		local cvet, nick, ider, vivod = text:match(u8:decode'^%[Альянс%] (.*) (%w+_%w+)%[(.*)]:(.*)')
 		if cvet and nick and ider and vivod and colorchat then
 			sampAddChatMessage(intToHex(join_argb(colorchat[3] * 255, colorchat[0] * 255, colorchat[1] * 255, colorchat[2] * 255))..u8:decode'[Альянс] '..cvet..' '..nick..'['..ider..']:{B9C1B8}'..vivod, -1)
 		end
 		return false
 	end
-	if text:find(u8:decode'^{......}%[Семья%]') then
+	if text:find(u8:decode'^{......}%[Семья%]') and not text:find(u8:decode':item(.*):') then
         local cvet, nick, ider, vivod = text:match(u8:decode'^{......}%[Семья%] (.*) (%w+_%w+)%[(.*)]:(.*)')
         if cvet and nick and ider and vivod and colorchat_fam then
             sampAddChatMessage(intToHex(join_argb(colorchat_fam[3] * 255, colorchat_fam[0] * 255, colorchat_fam[1] * 255, colorchat_fam[2] * 255))..u8:decode'[Семья] '..cvet..' '..nick..'['..ider..']:{B9C1B8}'..vivod, -1)
