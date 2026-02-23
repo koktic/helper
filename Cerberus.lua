@@ -1,4 +1,4 @@
-script_version("v1.18")
+script_version("v1.19")
 script_name("Mini Helper")
 local tag = "[Mini Helper] "
 
@@ -117,7 +117,6 @@ local settings = ini.load({
 		tg_fas = false,
 		tg_cr = false,
 		tg_ab = false,
-		tg_rent = false,
 		tg_rab = false,
 		tg_pay = false,
 		tg_upom = false,
@@ -133,7 +132,6 @@ local settings = ini.load({
 		vk_fas = false,
 		vk_cr = false,
 		vk_ab = false,
-		vk_rent = false,
 		vk_rab = false,
 		vk_pay = false,
 		vk_upom = false,
@@ -151,10 +149,10 @@ if not settings.dop or not settings.dop.castom_dl then
     settings.dop.castom_dl = settings.dop.castom_dl or 'dl'
 end
 if not settings.vkontakte then
-    settings.vkontakte = { vk_chat_id = '', vk_group_id = '', vk_token = '', vk_active = false, vk_fam = false, vk_al = false, vk_fas = false, vk_cr = false, vk_ab = false, vk_rent = false, vk_rab = false, vk_pay = false, vk_upom = false, vk_arenda = false }
+    settings.vkontakte = { vk_chat_id = '', vk_group_id = '', vk_token = '', vk_active = false, vk_fam = false, vk_al = false, vk_fas = false, vk_cr = false, vk_ab = false, vk_rab = false, vk_pay = false, vk_upom = false, vk_arenda = false }
 end
 if not settings.telegram then
-    settings.telegram = { chat_id = '', token = '', tg_active = false, tg_fam = false, tg_al = false, tg_fas = false, tg_cr = false, tg_ab = false, tg_rent = false, tg_rab = false, tg_pay = false, tg_upom = false, tg_arenda = false }
+    settings.telegram = { chat_id = '', token = '', tg_active = false, tg_fam = false, tg_al = false, tg_fas = false, tg_cr = false, tg_ab = false, tg_rab = false, tg_pay = false, tg_upom = false, tg_arenda = false }
 end
 if not settings.main then
     settings.main = { menu = 'mhelp', cr_sound = false, ab_sound = false, volume = 2 }
@@ -176,7 +174,6 @@ local telegram_ab = new.bool(settings.telegram.tg_ab)
 local telegram_rab = new.bool(settings.telegram.tg_rab)
 local telegram_pay = new.bool(settings.telegram.tg_pay)
 local telegram_upom = new.bool(settings.telegram.tg_upom)
-local telegram_rent = new.bool(settings.telegram.tg_rent)
 local updateid
 ---ВК ЛОКАЛ
 local vkinputid = new.char[256](u8(settings.vkontakte.vk_chat_id))
@@ -192,7 +189,6 @@ local vkontakte_ab = new.bool(settings.vkontakte.vk_ab)
 local vkontakte_rab = new.bool(settings.vkontakte.vk_rab)
 local vkontakte_pay = new.bool(settings.vkontakte.vk_pay)
 local vkontakte_upom = new.bool(settings.vkontakte.vk_upom)
-local vkontakte_rent = new.bool(settings.vkontakte.vk_rent)
 local vk_server, vk_key, vk_ts
 local vk_bot_state = "main"
 local vk_pending_messages = {}
@@ -1221,16 +1217,6 @@ function ev.onServerMessage(color, text)
 			playRandomSound()
 		end
 	end
-	if settings.telegram.tg_rent then
-		if text:find(u8:decode'^{8A2BE2}%[Arizona Rent%] {FFFFFF}Вы успешно сдали комнату в доме №(%d) в аренду игроку (%w+_%w+), на (%d) ч. за $(.+)!') then
-			sendTelegramNotification(text)
-		end
-	end
-	if settings.vkontakte.vk_rent then
-		if text:find(u8:decode'^{8A2BE2}%[Arizona Rent%] {FFFFFF}Вы успешно сдали комнату в доме №(%d) в аренду игроку (%w+_%w+), на (%d) ч. за $(.+)!') then
-			sendVkontakteNotification(text)
-		end
-	end
 	if settings.telegram.tg_fas then
 		if text:find(u8:decode'^{......}%[Семья %(Новости%)%] (%w+_%w+)%[%d+%]:{B9C1B8} (.*)') then
 			sendTelegramNotification(text)
@@ -1251,11 +1237,13 @@ function ev.onServerMessage(color, text)
 	end
 	if settings.telegram.tg_arenda then
 		if text:find(u8:decode'^%[Аренда авто%] (%w+_%w+) %[ID: (%d+)%] арендовал у вас (.*) на (%d+)ч за (.*)$') then
-		local nick,id,item,hours,summa = text:match(u8:decode'%[Аренда авто%] (%w+_%w+) %[ID: (%d+)%] арендовал у вас (.*) на (%d+)ч за (.*)$ %(в час(.*)%)')
+		    local nick,id,item,hours,summa = text:match(u8:decode'%[Аренда авто%] (%w+_%w+) %[ID: (%d+)%] арендовал у вас (.*) на (%d+)ч за (.*)$ %(в час(.*)%)')
 			if nick and id and item and hours and summa then
 			sendTelegramNotification(separator(string.format(u8:decode'[Аренда] %s[%s] арендовал %s на %sч за %s', nick,id,item,hours,summa)))
 			end
-		end
+        elseif text:find('^%[Arizona Rent%] {FFFFFF}Вы успешно сдали комнату в доме №(%d+) в аренду игроку (%w+_%w+), на (%d+) ч%. за %$([%d%.]+)!') then
+            sendVkontakteNotification(text)
+        end 
 	end
 	if settings.vkontakte.vk_arenda then
 		if text:find(u8:decode'^%[Аренда авто%] (%w+_%w+) %[ID: (%d+)%] арендовал у вас (.*) на (%d+)ч за (.*)$') then
@@ -1264,6 +1252,8 @@ function ev.onServerMessage(color, text)
 			sendVkontakteNotification(separator(string.format(u8:decode'[Аренда] %s[%s] арендовал %s на %sч за %s', nick,id,item,hours,summa)))
 			end
 		end
+        elseif text:find('^%[Arizona Rent%] {FFFFFF}Вы успешно сдали комнату в доме №(%d+) в аренду игроку (%w+_%w+), на (%d+) ч%. за %$([%d%.]+)!') then
+            sendVkontakteNotification(text)
 	end
 	if settings.telegram.tg_rab then
 		if text:find(u8:decode'^%[R%] ') then
@@ -1664,7 +1654,7 @@ imgui.OnFrame(function() return WinState[0] end, function(player)
 						imgui.OpenPopup('Настройка TG уведомлений')
 					end
 					if imgui.BeginPopupModal('Настройка TG уведомлений', _, imgui.WindowFlags.NoResize) then
-						imgui.SetWindowSizeVec2(imgui.ImVec2(370, 355))
+						imgui.SetWindowSizeVec2(imgui.ImVec2(370, 325))
 						if imgui.Checkbox('Получать сообщения семьи     ', telegram_fam) then
 							settings.telegram.tg_fam = telegram_fam[0]
 							ini.save(settings, 'Minihelper.ini')
@@ -1681,10 +1671,6 @@ imgui.OnFrame(function() return WinState[0] end, function(player)
 							settings.telegram.tg_cr = telegram_cr[0] 
 							ini.save(settings, 'Minihelper.ini')
 						end
-						if imgui.Checkbox('Получать уведомления о сдачи команты', telegram_rent) then
-							settings.telegram.tg_rent = telegram_rent[0]
-							ini.save(settings, 'Minihelper.ini')
-						end	
 						if imgui.Checkbox('Информация о сдаче в аренду', telegram_arenda) then
 							settings.telegram.tg_arenda = telegram_arenda[0]
 							ini.save(settings, 'Minihelper.ini')
@@ -1745,7 +1731,7 @@ imgui.OnFrame(function() return WinState[0] end, function(player)
 						imgui.OpenPopup('Настройка VK уведомлений')
 					end
 					if imgui.BeginPopupModal('Настройка VK уведомлений', _, imgui.WindowFlags.NoResize) then
-						imgui.SetWindowSizeVec2(imgui.ImVec2(370, 355))
+						imgui.SetWindowSizeVec2(imgui.ImVec2(370, 325))
 						if imgui.Checkbox('Получать сообщения семьи     ', vkontakte_fam) then
 							settings.vkontakte.vk_fam = vkontakte_fam[0]
 							ini.save(settings, 'Minihelper.ini')
@@ -1760,10 +1746,6 @@ imgui.OnFrame(function() return WinState[0] end, function(player)
 						end
 						if imgui.Checkbox('Получать уведомления о продаже/покупке в лавке', vkontakte_cr) then
 							settings.vkontakte.vk_cr = vkontakte_cr[0]
-							ini.save(settings, 'Minihelper.ini')
-						end
-						if imgui.Checkbox('Получать уведомления о сдачи команты', vkontakte_rent) then
-							settings.vkontakte.vk_rent = vkontakte_rent[0]
 							ini.save(settings, 'Minihelper.ini')
 						end
 						if imgui.Checkbox('Информация о сдаче в аренду', vkontakte_arenda) then
