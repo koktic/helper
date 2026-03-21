@@ -1,4 +1,4 @@
-script_version("v1.20")
+script_version("v1.21")
 script_name("Mini Helper")
 local tag = "[Mini Helper] "
 
@@ -669,8 +669,10 @@ function sendTelegramNotification(msg, keyboard)
     msg = encodeUrl(msg, true)
     
     local reply_markup = keyboard or '{"keyboard": [["👤 Статистика"], ["💬 | Семейный чат", "📝 Команды"]] , "resize_keyboard": true}'
-    
-    async_http_request('https://api.telegram.org/bot' .. tok .. '/sendMessage?chat_id=' .. cid .. '&reply_markup=' .. reply_markup .. '&text='..msg, '', function(result)
+    local reply_markup_enc = url_encode_form_component(reply_markup)
+    local chat_id_enc = url_encode_form_component(cid)
+
+    async_http_request('https://api.telegram.org/bot' .. tok .. '/sendMessage?chat_id=' .. chat_id_enc .. '&reply_markup=' .. reply_markup_enc .. '&text='..msg, '', function(result)
     end, function(err)
         telegramLog(tostring(err), true)
     end)
@@ -690,8 +692,10 @@ local function sendTelegramMessageTo(chat_id, msg, keyboard)
     msg = encodeUrl(msg, true)
 
     local reply_markup = keyboard or '{"remove_keyboard": true}'
+    local reply_markup_enc = url_encode_form_component(reply_markup)
+    local chat_id_enc = url_encode_form_component(tostring(chat_id))
     local tok2 = tostring(settings.telegram.token or ''):gsub('%s+', '')
-    async_http_request('https://api.telegram.org/bot' .. tok2 .. '/sendMessage?chat_id=' .. tostring(chat_id) .. '&reply_markup=' .. reply_markup .. '&text=' .. msg, '', function(result)
+    async_http_request('https://api.telegram.org/bot' .. tok2 .. '/sendMessage?chat_id=' .. chat_id_enc .. '&reply_markup=' .. reply_markup_enc .. '&text=' .. msg, '', function(result)
     end, function(err)
         telegramLog(tostring(err), true)
     end)
@@ -926,6 +930,10 @@ function encodeUrl1(str)
     return table.concat(result)
 end
 
+--- Клавиатура VK (messages.send, параметр keyboard): подписи совпадают с обработчиком processing_vkontakte_messages
+local VK_KEYBOARD_MAIN = '{"one_time":false,"inline":false,"buttons":[[{"action":{"type":"text","label":"👤 Статистика"},"color":"secondary"}],[{"action":{"type":"text","label":"💬 | Семейный чат"},"color":"secondary"},{"action":{"type":"text","label":"📝 Команды"},"color":"secondary"}]]}'
+local VK_KEYBOARD_CANCEL = '{"one_time":false,"inline":false,"buttons":[[{"action":{"type":"text","label":"❌Отмена"},"color":"negative"}]]}'
+
 function sendVkontakteNotification(msg, keyboard)
     if not settings.vkontakte or not settings.vkontakte.vk_active then
         return
@@ -940,12 +948,20 @@ function sendVkontakteNotification(msg, keyboard)
     msg = msg:gsub('{......}', '')
     local encoded_msg = encodeUrl1(msg)
 
+    local kb = keyboard
+    if kb == nil then
+        kb = VK_KEYBOARD_MAIN
+    end
+
     local random_id = math.floor(os.clock() * 1000) + math.random(1, 99999)
     local url = 'https://api.vk.com/method/messages.send?peer_id=' .. encodeUrl1(settings.vkontakte.vk_chat_id) ..
         '&random_id=' .. random_id ..
         '&message=' .. encoded_msg ..
         '&access_token=' .. encodeUrl1(settings.vkontakte.vk_token) ..
         '&v=5.199'
+    if type(kb) == 'string' and kb ~= '' then
+        url = url .. '&keyboard=' .. encodeUrl1(kb)
+    end
     async_http_request1(url, '', function(result)
         if result and result:find('"error"') then
             local ok, err_data = pcall(decodeJson, result)
@@ -1106,7 +1122,7 @@ function processing_vkontakte_messages(message)
             sampSendChat(u8:decode(arg))
         elseif vk_btn(text, 'Семейный чат') or text:match('^%s*Семейный') or text:match('^💬') then
             vk_bot_state = "fam"
-            sendVkontakteNotification(u8:decode"Введите сообщение (или напиши Отмена):")
+            sendVkontakteNotification(u8:decode"Введите сообщение (или напиши Отмена):", VK_KEYBOARD_CANCEL)
         elseif text:match('^/fam') then
             local arg = text:gsub('/fam ', '/fam ', 1)
             sampSendChat(u8:decode(arg))
@@ -1285,13 +1301,13 @@ function ev.onServerMessage(color, text)
 	end
 	if settings.vkontakte.vk_arenda then
 		if text:find(u8:decode'^%[Аренда авто%] (%w+_%w+) %[ID: (%d+)%] арендовал у вас (.*) на (%d+)ч за (.*)$') then
-		local nick,id,item,hours,summa = text:match(u8:decode'%[Аренда авто%] (%w+_%w+) %[ID: (%d+)%] арендовал у вас (.*) на (%d+)ч за (.*)$ %(в час(.*)%)')
+		    local nick,id,item,hours,summa = text:match(u8:decode'%[Аренда авто%] (%w+_%w+) %[ID: (%d+)%] арендовал у вас (.*) на (%d+)ч за (.*)$ %(в час(.*)%)')
 			if nick and id and item and hours and summa then
-			sendVkontakteNotification(separator(string.format(u8:decode'[Аренда] %s[%s] арендовал %s на %sч за %s', nick,id,item,hours,summa)))
+			    sendVkontakteNotification(separator(string.format(u8:decode'[Аренда] %s[%s] арендовал %s на %sч за %s', nick,id,item,hours,summa)))
 			end
-		end
-        elseif text:find('^%[Arizona Rent%] {FFFFFF}Вы успешно сдали комнату в доме №(%d+) в аренду игроку (%w+_%w+), на (%d+) ч%. за %$([%d%.]+)!') then
+		elseif text:find('^%[Arizona Rent%] {FFFFFF}Вы успешно сдали комнату в доме №(%d+) в аренду игроку (%w+_%w+), на (%d+) ч%. за %$([%d%.]+)!') then
             sendVkontakteNotification(text)
+        end
 	end
 	if settings.telegram.tg_rab then
 		if text:find(u8:decode'^%[R%] ') then
@@ -1521,7 +1537,7 @@ imgui.OnFrame(function() return WinState[0] end, function(player)
 						imgui.OpenPopup('Настройка TG уведомлений')
 					end
 					if imgui.BeginPopupModal('Настройка TG уведомлений', _, imgui.WindowFlags.NoResize) then
-						imgui.SetWindowSizeVec2(imgui.ImVec2(370, 400))
+						imgui.SetWindowSizeVec2(imgui.ImVec2(370, 330))
 						if imgui.Checkbox('Получать сообщения семьи     ', telegram_fam) then
 							settings.telegram.tg_fam = telegram_fam[0]
 							ini.save(settings, 'Minihelper.ini')
