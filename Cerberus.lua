@@ -1,13 +1,15 @@
-script_version("v1.19")
+script_version("v1.20")
 script_name("Mini Helper")
 local tag = "[Mini Helper] "
+
+-- Адреса зашиты в скрипт (не редактируются в меню)
+local TG_RELAY_URL = 'https://api.wh28240.web4.maze-tech.ru/tg-relay.php'
 
 local imgui = require 'mimgui'
 local fa = require('fAwesome5')
 
 local encoding = require 'encoding'
 encoding.default = 'CP1251'
-local new = imgui.new
 local u8 = encoding.UTF8
 -- UTF-8 helpers: detect valid UTF-8 and convert from CP1251 only when needed
 local function is_valid_utf8(s)
@@ -59,23 +61,13 @@ local notifications = {
     end
 }
 local ntf_loaded = false
-if pcall(function()
+pcall(function()
     local ntf = require("notifications")
     if ntf and ntf.info then
         notifications = ntf
         ntf_loaded = true
     end
-end) and ntf_loaded then
-    print('NTF good')
-end
-if not ntf_loaded then
-    local NTF = getWorkingDirectory().."/lib/notifications.lua"
-    downloadUrlToFile('https://raw.githubusercontent.com/koktic/helper/refs/heads/main/notifications.lua', NTF)
-end
-
-if not doesFileExist(getWorkingDirectory().."/MiniHelper/fAwesome5.ttf") then
-	downloadUrlToFile("https://dl.dropboxusercontent.com/s/zgfq5juurf7yvru/fAwesome5.ttf", getWorkingDirectory().."/MiniHelper/fonts/fAwesome5.ttf")
-end 	
+end)
 
 local tab = 1
 local WinState = new.bool()
@@ -110,6 +102,13 @@ local settings = ini.load({
     telegram = {
         chat_id = '',
         token = '',
+        tg_proxy_host = '',
+        tg_proxy_port = '',
+        tg_proxy_login = '',
+        tg_proxy_password = '',
+        tg_proxy = '',
+        tg_use_server_config = false,
+        tg_use_proxy = false,
         tg_active = false,
 		tg_arenda = false,
 		tg_fam = false,
@@ -152,7 +151,28 @@ if not settings.vkontakte then
     settings.vkontakte = { vk_chat_id = '', vk_group_id = '', vk_token = '', vk_active = false, vk_fam = false, vk_al = false, vk_fas = false, vk_cr = false, vk_ab = false, vk_rab = false, vk_pay = false, vk_upom = false, vk_arenda = false }
 end
 if not settings.telegram then
-    settings.telegram = { chat_id = '', token = '', tg_active = false, tg_fam = false, tg_al = false, tg_fas = false, tg_cr = false, tg_ab = false, tg_rab = false, tg_pay = false, tg_upom = false, tg_arenda = false }
+    settings.telegram = { chat_id = '', token = '', tg_proxy_host = '', tg_proxy_port = '', tg_proxy_login = '', tg_proxy_password = '', tg_proxy = '', tg_use_server_config = false, tg_use_proxy = false, tg_active = false, tg_fam = false, tg_al = false, tg_fas = false, tg_cr = false, tg_ab = false, tg_rab = false, tg_pay = false, tg_upom = false, tg_arenda = false }
+end
+if settings.telegram and settings.telegram.tg_proxy_host == nil then
+    settings.telegram.tg_proxy_host = ''
+end
+if settings.telegram and settings.telegram.tg_proxy_port == nil then
+    settings.telegram.tg_proxy_port = ''
+end
+if settings.telegram and settings.telegram.tg_proxy_login == nil then
+    settings.telegram.tg_proxy_login = ''
+end
+if settings.telegram and settings.telegram.tg_proxy_password == nil then
+    settings.telegram.tg_proxy_password = ''
+end
+if settings.telegram and settings.telegram.tg_proxy == nil then
+    settings.telegram.tg_proxy = ''
+end
+if settings.telegram and settings.telegram.tg_use_proxy == nil then
+    settings.telegram.tg_use_proxy = false
+end
+if settings.telegram and settings.telegram.tg_use_server_config == nil then
+    settings.telegram.tg_use_server_config = false
 end
 if not settings.main then
     settings.main = { menu = 'mhelp', cr_sound = false, ab_sound = false, volume = 2 }
@@ -161,9 +181,55 @@ if not settings.color_chat or type(settings.color_chat) ~= 'table' or #settings.
     settings.color_chat = { 1, 0, 0, 1 }
 end
 
+--- Прокси TG: http://user:pass@host:port для ssl.https (строка tg_proxy — только совместимость со старым INI)
+--- Режим «Сервер» (релей) и кастомный прокси не смешиваем — при включённом сервере локальный прокси для TG не используется.
+local function getTelegramProxyUrl()
+    local tg = settings.telegram
+    if not tg then
+        return ''
+    end
+    if tg.tg_use_server_config then
+        return ''
+    end
+    if not tg.tg_use_proxy then
+        return ''
+    end
+    local host = (tg.tg_proxy_host or ''):gsub('^%s+', ''):gsub('%s+$', '')
+    local port_str = tostring(tg.tg_proxy_port or ''):gsub('^%s+', ''):gsub('%s+$', '')
+    local port = tonumber(port_str)
+    if host ~= '' and port and port >= 1 and port <= 65535 then
+        local login = (tg.tg_proxy_login or ''):gsub('^%s+', ''):gsub('%s+$', '')
+        local pass = (tg.tg_proxy_password or ''):gsub('^%s+', ''):gsub('%s+$', '')
+        local function enc(s)
+            return (tostring(s):gsub('[^%w%-._~]', function(c)
+                return string.format('%%%02X', c:byte())
+            end))
+        end
+        if login ~= '' and pass ~= '' then
+            return string.format('http://%s:%s@%s:%d', enc(login), enc(pass), host, port)
+        elseif login ~= '' then
+            return string.format('http://%s@%s:%d', enc(login), host, port)
+        else
+            return string.format('http://%s:%d', host, port)
+        end
+    end
+    local legacy = tg.tg_proxy or ''
+    if type(legacy) == 'string' then
+        legacy = legacy:gsub('^%s+', ''):gsub('%s+$', '')
+        if legacy ~= '' then
+            return legacy
+        end
+    end
+    return ''
+end
+
 ---ТГ ЛОКАЛ
 local inputid = new.char[256](u8(settings.telegram.chat_id))
 local inputtoken = new.char[256](u8(settings.telegram.token))
+local inputproxyhost = new.char[256](u8(settings.telegram.tg_proxy_host or ''))
+local inputproxyport = new.char[16](u8(tostring(settings.telegram.tg_proxy_port or '')))
+local inputproxylogin = new.char[256](u8(settings.telegram.tg_proxy_login or ''))
+local inputproxypass = new.char[256](u8(settings.telegram.tg_proxy_password or ''))
 local telegram_rabota = new.bool(settings.telegram.tg_active)
 local telegram_fam = new.bool(settings.telegram.tg_fam)
 local telegram_arenda = new.bool(settings.telegram.tg_arenda)
@@ -174,7 +240,20 @@ local telegram_ab = new.bool(settings.telegram.tg_ab)
 local telegram_rab = new.bool(settings.telegram.tg_rab)
 local telegram_pay = new.bool(settings.telegram.tg_pay)
 local telegram_upom = new.bool(settings.telegram.tg_upom)
+local telegram_use_proxy = new.bool(settings.telegram.tg_use_proxy == true)
+local telegram_use_server = new.bool(settings.telegram.tg_use_server_config == true)
 local updateid
+
+local function fill_imgui_char_buf(buf, maxlen, text)
+    text = tostring(text or '')
+    ffi.fill(buf, maxlen, 0)
+    if #text == 0 then return end
+    local n = math.min(#text, maxlen - 1)
+    ffi.copy(buf, text, n)
+    local bytes = ffi.cast('uint8_t*', buf)
+    bytes[n] = 0
+end
+
 ---ВК ЛОКАЛ
 local vkinputid = new.char[256](u8(settings.vkontakte.vk_chat_id))
 local vkgroupid = new.char[256](u8(settings.vkontakte.vk_group_id))
@@ -193,431 +272,8 @@ local vk_server, vk_key, vk_ts
 local vk_bot_state = "main"
 local vk_pending_messages = {}
 --ПОЛЕЗНОЕ
-local cdl = new.char[12](settings.dop and settings.dop.castom_dl or 'dl')
 local autoCookEnabled = new.bool(false)
 local cookThread = nil
-
--- АВТОЗАТОЧКА (из autozatochka.lua)
-local az_WinState, az_playSound = new.bool(), new.bool()
-local az_status = false
-local az_max_toch = 0
-local az_button_id = 0
-local az_tochi, az_workshop_check, az_stone_check = false, false, false
-local az_lost_stone_onLVL, az_all_lost = 0, 0
-local az_stone = {}
-local az_lost_stone = {}
-local az_enchantSlotsData = {index = -1, left = -1, right = -1, color = -1}
-local Whetstone_ITEM_ID = 1187
-local az_whetstone_detected = false
-local az_whetstone_last_check = 0
-local Whetstone_CHECK_INTERVAL_MS = 2000
-
-local function attemptsWord(n)
-    n = tonumber(n) or 0
-    if n == 1 then return "1 попытка"
-    elseif n >= 2 and n <= 4 then return n .. " попытки"
-    else return n .. " попыток" end
-end
-
--- CEF автозаточки
-function evalanon(code)
-    evalcef(("(() => {%s})()"):format(code))
-end
-
-function evalcef(code, encoded)
-    encoded = encoded or 0
-    local bs = raknetNewBitStream()
-    raknetBitStreamWriteInt8(bs, 17)
-    raknetBitStreamWriteInt32(bs, 0)
-    raknetBitStreamWriteInt16(bs, #code)
-    raknetBitStreamWriteInt8(bs, encoded)
-    raknetBitStreamWriteString(bs, code)
-    raknetEmulPacketReceiveBitStream(220, bs)
-    raknetDeleteBitStream(bs)
-end
-
-function sendCEFEvent(eventName, params)
-    local code = string.format("window.executeEvent('%s', `%s`);", eventName, params)
-    evalcef(code, 0)
-end
-
-function sendCEF(str)
-    local bs = raknetNewBitStream()
-    raknetBitStreamWriteInt8(bs, 220)
-    raknetBitStreamWriteInt8(bs, 18)
-    raknetBitStreamWriteInt16(bs, #str)
-    raknetBitStreamWriteString(bs, str)
-    raknetBitStreamWriteInt32(bs, 0)
-    raknetSendBitStream(bs)
-    raknetDeleteBitStream(bs)
-end
-
-function rightClickOnBlock(slot, type)
-    local json = string.format('{"slot": %d, "type": %d}', slot, type or 1)
-    sendCEF('rightClickOnBlock|'..json)
-end
-
-function leftClickOnBlock(slot, type)
-    local json = string.format('{"slot": %d, "type": %d}', slot, type or 1)
-    sendCEF('leftClickOnBlock|'..json)
-end
-
-function clickOnBlock(slot, type)
-    local json = string.format('{"slot": %d, "type": %d}', slot, type or 1)
-    sendCEF('clickOnBlock|'..json)
-end
-
-function clickOnButton(type, slot, action)
-    local json = string.format('{"type": %d, "slot": %d, "action": %d}', type or 1, slot, action or 16)
-    sendCEF('clickOnButton|'..json)
-end
-
-function moveItem(fromSlot, fromType, toSlot, toType, amount)
-    amount = amount or 1
-    fromType = fromType or 1
-    toType = toType or 1
-    local json = string.format('{"from":{"slot":%d,"type":%d,"amount":%d},"to":{"slot":%d,"type":%d}}', fromSlot, fromType, amount, toSlot, toType)
-    sendCEF('inventory.moveItem|'..json)
-end
-
-local Whetstone_KEYWORDS = { "Точильный камень", "точильный камень", "Заточка", "заточка" }
-
-function getWhetstoneCount()
-    local keywordsEsc = {}
-    for _, kw in ipairs(Whetstone_KEYWORDS) do
-        keywordsEsc[#keywordsEsc + 1] = (kw):gsub("\\", "\\\\"):gsub('"', '\\"'):gsub("\r", ""):gsub("\n", "\\n")
-    end
-    local kwList = table.concat(keywordsEsc, '","')
-    local result = evalanon(string.format([[
-        (function() {
-            try {
-                var count = 0;
-                var keywords = ["%s"];
-                var containers = document.querySelectorAll('.inventory-main__grid, .inventory-grid__grid, .warehouse .inventory-grid__grid, [class*="inventory-grid"], [class*="inventory-main"], .inventory-container, [class*="inventory"]');
-                for (var c = 0; c < containers.length; c++) {
-                    var items = containers[c].querySelectorAll('.inventory-item-hoc, .inventory-grid__item-bg, [class*="inventory-item"], [class*="item"]');
-                    for (var i = 0; i < items.length; i++) {
-                        var item = items[i];
-                        var img = item.querySelector('.inventory-item__image, img');
-                        var alt = img ? (img.getAttribute('alt') || '') : '';
-                        var title = img ? (img.getAttribute('title') || '') : '';
-                        var src = img ? (img.getAttribute('src') || '') : '';
-                        var text = (item.innerText || item.textContent || '').toString();
-                        var combined = alt + ' ' + title + ' ' + text;
-                        var m = alt.match(/\d+/); var m2 = src.match(/\d+/);
-                        var id = parseInt(m ? m[0] : 0) || parseInt(m2 ? m2[0] : 0) || 0;
-                        var byName = false;
-                        for (var k = 0; k < keywords.length; k++) {
-                            if (combined.indexOf(keywords[k]) !== -1) { byName = true; break; }
-                        }
-                        if (id === 1187 || byName) count++;
-                    }
-                }
-                var byAttr = document.querySelectorAll('[data-item-id="1187"], [data-model="1187"], [data-id="1187"], img[alt*="1187"]');
-                if (byAttr.length > 0 && count === 0) count = byAttr.length;
-                if (count > 0) return count;
-                var allImgs = document.querySelectorAll('img[alt], [class*="item"] img, [class*="inventory"] img');
-                for (var j = 0; j < allImgs.length; j++) {
-                    var a = (allImgs[j].getAttribute('alt') || '') + (allImgs[j].getAttribute('title') || '');
-                    var par = allImgs[j].parentElement;
-                    if (par && (par.innerText || par.textContent)) a += (par.innerText || par.textContent).toString();
-                    for (var k = 0; k < keywords.length; k++) {
-                        if (a.indexOf(keywords[k]) !== -1) { count++; break; }
-                    }
-                }
-                return count;
-            } catch(e) { return 0; }
-        })();
-    ]], kwList))
-    local n = tonumber(result)
-    return (n and n >= 0) and n or 0
-end
-
-function findStoneSlotNumber()
-    local kwEsc = (Whetstone_KEYWORDS[1]):gsub("\\", "\\\\"):gsub('"', '\\"'):gsub("\r", ""):gsub("\n", "\\n")
-    evalanon(string.format([[
-        try {
-            var stoneSlotNumber = -1;
-            var keywords = ["%s", "Заточка", "заточка"];
-            var containerSelectors = ['.inventory-main__grid', '.inventory-grid__grid', '.warehouse .inventory-grid__grid', '[class*="inventory-grid"]', '[class*="inventory-main"]', '.inventory-container', '[class*="inventory"]'];
-            for (var cs = 0; cs < containerSelectors.length; cs++) {
-                var containers = document.querySelectorAll(containerSelectors[cs]);
-                for (var c = 0; c < containers.length; c++) {
-                    var items = containers[c].querySelectorAll('.inventory-item-hoc, .inventory-grid__item-bg, [class*="item"]');
-                    for (var i = 0; i < items.length; i++) {
-                        var item = items[i];
-                        var img = item.querySelector('.inventory-item__image, img');
-                        if (!img) continue;
-                        var alt = img.getAttribute('alt') || '';
-                        var src = img.getAttribute('src') || '';
-                        var text = (item.innerText || item.textContent || '').toString();
-                        var combined = alt + ' ' + text;
-                        var m = alt.match(/\d+/); var m2 = src.match(/\d+/);
-                        var id = parseInt(m ? m[0] : 0) || parseInt(m2 ? m2[0] : 0) || 0;
-                        var byName = false;
-                        for (var k = 0; k < keywords.length; k++) { if (combined.indexOf(keywords[k]) !== -1) { byName = true; break; } }
-                        if (id !== 1187 && !byName) continue;
-                        var slotNum = -1;
-                        var slotAttr = item.getAttribute('data-slot');
-                        if (slotAttr) slotNum = parseInt(slotAttr);
-                        if (slotNum < 0) { var p = item.closest('[data-slot]'); if (p) slotNum = parseInt(p.getAttribute('data-slot')); }
-                        if (slotNum < 0) { var ia = item.getAttribute('data-index'); if (ia) slotNum = parseInt(ia); }
-                        if (slotNum < 0) { var s2 = item.getAttribute('slot'); if (s2) slotNum = parseInt(s2); }
-                        if (slotNum < 0) slotNum = i;
-                        if (slotNum >= 0) { window.stoneSlotNumber = slotNum; return slotNum; }
-                    }
-                }
-            }
-            return -1;
-        } catch(e) { return -1; }
-    ]], kwEsc))
-    wait(150)
-    local slotNum = evalanon([[ return (typeof window.stoneSlotNumber !== 'undefined' && window.stoneSlotNumber >= 0) ? window.stoneSlotNumber : -1; ]])
-    return (type(slotNum) == 'number' and slotNum >= 0) and slotNum or (tonumber(slotNum) or -1)
-end
-
-function findEnchantSlotNumber()
-    evalanon([[
-        try {
-            const leftSlotSelectors = [
-                '[class*="left-slot"]', '[class*="leftSlot"]', '[class*="left_slot"]', '[data-slot="left"]', '[data-slot-type="left"]',
-                '[class*="enchant-slot"]:first-child', '[class*="enchantSlot"]:first-child', '.enchant-main__slot-item:first-child',
-                '[class*="enchant-slot"]', '[class*="enchantSlot"]'
-            ];
-            let enchantSlotNumber = -1;
-            for (let selector of leftSlotSelectors) {
-                const slots = document.querySelectorAll(selector);
-                for (let slot of slots) {
-                    const rect = slot.getBoundingClientRect();
-                    if (rect.width > 0 && rect.height > 0) {
-                        const hasItem = slot.querySelector('.inventory-item-hoc, .inventory-item__image, img[alt*="1187"]');
-                        if (!hasItem) {
-                            let slotNum = -1;
-                            const slotAttr = slot.getAttribute('data-slot');
-                            if (slotAttr && slotAttr ~= 'left') slotNum = parseInt(slotAttr);
-                            if (slotNum < 0) { const indexAttr = slot.getAttribute('data-index'); if (indexAttr) slotNum = parseInt(indexAttr); }
-                            if (slotNum < 0 && window.enchantSlotIndex !== undefined) slotNum = window.enchantSlotIndex;
-                            if (slotNum >= 0) { window.enchantSlotNumber = slotNum; return slotNum; }
-                            window.enchantSlotNumber = 0; return 0;
-                        }
-                    }
-                }
-            }
-            return enchantSlotNumber;
-        } catch(e) { return -1; }
-    ]])
-    wait(100)
-    local slotNum = evalanon([[ return window.enchantSlotNumber !== undefined ? window.enchantSlotNumber : -1; ]])
-    return slotNum or -1
-end
-
-function findAndClickStone()
-    local stoneSlotNum = findStoneSlotNumber()
-    if stoneSlotNum >= 0 then
-        if az_enchantSlotsData.left == -1 then
-            local enchantSlot = az_enchantSlotsData.index >= 0 and az_enchantSlotsData.index or findEnchantSlotNumber()
-            if enchantSlot >= 0 then
-                moveItem(stoneSlotNum, 1, enchantSlot, 1, 1)
-                wait(500)
-            end
-            if enchantSlot >= 0 then
-                clickOnBlock(stoneSlotNum, 1)
-                wait(350)
-                clickOnBlock(enchantSlot, 1)
-                wait(400)
-            end
-            local enchantSlotNum = (enchantSlot >= 0) and enchantSlot or findEnchantSlotNumber()
-            if enchantSlotNum >= 0 and enchantSlotNum ~= az_enchantSlotsData.index then
-                for _, toType in ipairs({1, 2, 3, 4, 5}) do
-                    moveItem(stoneSlotNum, 1, enchantSlotNum, toType, 1)
-                    wait(400)
-                end
-            end
-            for _, specialSlot in ipairs({-1, -2, -3, 0, 1, 2, 100, 200, 1000, 2000}) do
-                for _, toType in ipairs({1, 2, 3}) do
-                    moveItem(stoneSlotNum, 1, specialSlot, toType, 1)
-                    wait(200)
-                end
-            end
-            rightClickOnBlock(stoneSlotNum, 1)
-            wait(800)
-            if az_enchantSlotsData.index >= 0 then
-                for _, toType in ipairs({1, 2, 3, 4, 5}) do
-                    moveItem(stoneSlotNum, 1, az_enchantSlotsData.index, toType, 1)
-                    wait(400)
-                end
-            end
-            if enchantSlotNum >= 0 and enchantSlotNum ~= az_enchantSlotsData.index then
-                for _, toType in ipairs({1, 2, 3, 4, 5}) do
-                    moveItem(stoneSlotNum, 1, enchantSlotNum, toType, 1)
-                    wait(400)
-                end
-            end
-            for _, specialSlot in ipairs({-1, -2, -3, 0, 1, 2, 100, 200, 1000, 2000}) do
-                for _, toType in ipairs({1, 2, 3}) do
-                    moveItem(stoneSlotNum, 1, specialSlot, toType, 1)
-                    wait(200)
-                end
-            end
-            if az_enchantSlotsData.index >= 0 then
-                moveItem(stoneSlotNum, 1, az_enchantSlotsData.index, 1, 1)
-                wait(600)
-            end
-            if az_enchantSlotsData.index >= 0 then
-                leftClickOnBlock(az_enchantSlotsData.index, 1)
-                wait(400)
-            end
-            if enchantSlotNum >= 0 and enchantSlotNum ~= az_enchantSlotsData.index then
-                leftClickOnBlock(enchantSlotNum, 1)
-                wait(400)
-            end
-            if az_enchantSlotsData.index >= 0 then
-                clickOnButton(1, az_enchantSlotsData.index, 16)
-                wait(400)
-            end
-            evalanon([[
-                try {
-                    const leftSlotSelectors = ['[class*="left-slot"]','[class*="leftSlot"]','[class*="enchant-slot"]:first-child','[class*="enchantSlot"]','[class*="slot"][class*="enchant"]'];
-                    let foundSlot = null;
-                    for (let selector of leftSlotSelectors) {
-                        const slots = document.querySelectorAll(selector);
-                        for (let slot of slots) {
-                            const rect = slot.getBoundingClientRect();
-                            if (rect.width > 0 && rect.height > 0) {
-                                const hasItem = slot.querySelector('.inventory-item-hoc, .inventory-item__image, img[alt*="1187"]');
-                                if (!hasItem) { foundSlot = slot; break; }
-                            }
-                        }
-                        if (foundSlot) break;
-                    }
-                    if (foundSlot) {
-                        const rect = foundSlot.getBoundingClientRect();
-                        const centerX = rect.left + rect.width / 2, centerY = rect.top + rect.height / 2;
-                        if (typeof foundSlot.click === 'function') foundSlot.click();
-                        foundSlot.dispatchEvent(new MouseEvent('mousedown', {bubbles:true,cancelable:true,button:0,clientX:centerX,clientY:centerY,view:window}));
-                        setTimeout(() => {
-                            foundSlot.dispatchEvent(new MouseEvent('mouseup', {bubbles:true,cancelable:true,button:0,clientX:centerX,clientY:centerY,view:window}));
-                            foundSlot.dispatchEvent(new MouseEvent('click', {bubbles:true,cancelable:true,button:0,clientX:centerX,clientY:centerY,view:window}));
-                            if (typeof foundSlot.click === 'function') foundSlot.click();
-                        }, 50);
-                        return true;
-                    }
-                } catch(e) {}
-                return false;
-            ]])
-            wait(1000)
-        end
-        return true
-    else
-        evalanon([[
-            try {
-                const containers = document.querySelectorAll('.inventory-main__grid, .inventory-grid__grid, [class*="inventory-grid"]');
-                let stoneItem = null;
-                containers.forEach((container) => {
-                    const items = container.querySelectorAll('.inventory-item-hoc, .inventory-grid__item-bg');
-                    items.forEach((item) => {
-                        const img = item.querySelector('.inventory-item__image, img');
-                        if (img) {
-                            const alt = img.getAttribute('alt') || '';
-                            const itemId = parseInt(alt.match(/\d+/)?.[0]) || 0;
-                            if (itemId === 1187) { stoneItem = item; return; }
-                        }
-                    });
-                    if (stoneItem) return;
-                });
-                if (stoneItem) { stoneItem.click(); return true; }
-            } catch(e) {}
-            return false;
-        ]])
-    end
-    return false
-end
-
-function findAndClickEnchantButton()
-    evalanon([[
-        try {
-            const buttonTexts = ['ENCHANT', 'ЗАТОЧКА', 'Заточить', 'Улучшить', 'ENHANCE', 'Заточка', 'заточка', 'ЗАТОЧИТЬ', 'START', 'НАЧАТЬ'];
-            const selectors = ['button', '[role="button"]', '.btn', '[class*="button"]', '[class*="btn"]', '[class*="enchant"]', '[class*="start"]', 'div[onclick]', '*[onclick]'];
-            for (let selector of selectors) {
-                const buttons = document.querySelectorAll(selector);
-                for (let btn of buttons) {
-                    const rect = btn.getBoundingClientRect();
-                    if (rect.width === 0 || rect.height === 0) continue;
-                    const text = (btn.textContent || btn.innerText || '').toUpperCase();
-                    const className = (btn.className || '').toUpperCase();
-                    for (let searchText of buttonTexts) {
-                        if (text.includes(searchText.toUpperCase()) || className.includes(searchText.toUpperCase())) {
-                            btn.dispatchEvent(new MouseEvent('mousedown', {bubbles:true,cancelable:true,button:0}));
-                            btn.dispatchEvent(new MouseEvent('mouseup', {bubbles:true,cancelable:true,button:0}));
-                            btn.dispatchEvent(new MouseEvent('click', {bubbles:true,cancelable:true,button:0}));
-                            if (typeof btn.click === 'function') btn.click();
-                            return true;
-                        }
-                    }
-                }
-            }
-        } catch(e) {}
-        return false;
-    ]])
-end
-
-function startEnchant()
-    sendCEF('startEnchant')
-    evalanon([[ try { if (typeof window.executeEvent === 'function') window.executeEvent('startEnchant', ''); } catch(e) {} ]])
-end
-
-function az_click_onStone()
-    if not az_workshop_check then
-        az_checkWorkshopStatus()
-        evalanon([[ if (window.workshopDetected === true) window.workshopCheckResult = 1; ]])
-    end
-    if #az_stone == 0 then
-        if az_workshop_check then
-            findAndClickStone()
-            az_tochi = az_workshop_check
-        else
-            az_checkWorkshopStatus()
-            evalanon([[
-                const bodyText = (document.body.innerText || '').toUpperCase();
-                if (bodyText.includes('WORKSHOP') || bodyText.includes('ВЕРСТАК') || bodyText.includes('ENCHANT') || bodyText.includes('ЗАТОЧКА') || document.querySelectorAll('[data-item-id="1187"], [data-model="1187"]').length > 0 || window.workshopDetected === true) window.forceWorkshopOpen = true;
-            ]])
-            az_workshop_check = true
-            findAndClickStone()
-            az_tochi = true
-        end
-    else
-        for k,v in pairs(az_stone) do
-            sampSendClickTextdraw(v[1])
-            az_tochi = (az_workshop_check and true or false)
-            break
-        end
-    end
-end
-
-function az_checkWorkshopStatus()
-    evalanon([[
-        try {
-            const bodyText = (document.body.innerText || document.body.textContent || '').toUpperCase();
-            const hasKeywords = bodyText.includes('WORKSHOP') || bodyText.includes('ВЕРСТАК') || bodyText.includes('МАСТЕРСКАЯ') || bodyText.includes('ENCHANT') || bodyText.includes('ЗАТОЧКА');
-            const hasEnchantElements = document.querySelectorAll('[class*="enchant"], [class*="Enchant"], [id*="enchant"]').length > 0;
-            const hasWorkshopElements = document.querySelectorAll('[class*="workshop"], [class*="Workshop"], [id*="workshop"]').length > 0;
-            let hasStoneElements = document.querySelectorAll('[data-item-id="1187"], [data-model="1187"], [data-id="1187"]').length > 0;
-            if (!hasStoneElements) {
-                const inventoryItems = document.querySelectorAll('.inventory-item-hoc');
-                for (let item of inventoryItems) {
-                    const img = item.querySelector('.inventory-item__image');
-                    if (img) {
-                        const alt = img.getAttribute('alt') || '';
-                        const itemId = parseInt(alt.match(/\d+/)?.[0]) || 0;
-                        if (itemId === 1187) { hasStoneElements = true; break; }
-                    }
-                }
-            }
-            if (hasKeywords || hasEnchantElements || hasWorkshopElements || hasStoneElements || window.enchantInterfaceOpen === true || window.workshopOpen === true) window.workshopDetected = true;
-            else window.workshopDetected = false;
-        } catch(e) { window.workshopDetected = false; }
-    ]])
-end
 
 --ЦВЕТА
 local colorchat = imgui.new.float[4](settings.color_chat)
@@ -660,10 +316,234 @@ end)
 
 
 ---ДЛЯ РАБОТЫ С ТГ
+local function telegramLog(msg, is_error)
+    local text = tag .. '[TG] ' .. tostring(msg)
+    print(text)
+    if isSampAvailable() then
+        pcall(function()
+            sampAddChatMessage(u8:decode(text), -1)
+        end)
+    end
+    if is_error and notifications and notifications.error then
+        pcall(function()
+            notifications.error(u8:decode(text), 7000)
+        end)
+    end
+end
+
 function requestRunner()
-    return effil.thread(function(u, a)
+    return effil.thread(function(u, a, proxy)
         local https = require 'ssl.https'
-        local ok, result = pcall(https.request, u, a)
+        local ltn12 = require 'ltn12'
+        local socket = require 'socket'
+        local ok, result = pcall(function()
+            -- LuaSec ssl.https явно запрещает url.proxy — только прямой HTTPS.
+            -- Через HTTP-прокси: CONNECT → TLS → HTTP (RFC 7231).
+            local function https_via_http_proxy(proxy_url, target_url, body_str)
+                local socket = require('socket')
+                local ssl = require('ssl')
+                local surl = require('socket.url')
+                local mime = require('mime')
+
+                local tu = surl.parse(target_url, { scheme = 'https', port = 443 })
+                if not tu.host or tu.host == '' then
+                    error('invalid HTTPS URL')
+                end
+                local thost = tu.host
+                local tport = tonumber(tu.port) or 443
+                local path = tu.path or '/'
+                if tu.query and tu.query ~= '' then
+                    path = path .. '?' .. tu.query
+                end
+                if path:sub(1, 1) ~= '/' then
+                    path = '/' .. path
+                end
+
+                local pu = surl.parse(proxy_url)
+                if not pu.host or pu.host == '' then
+                    error('invalid proxy URL')
+                end
+                local phost = pu.host
+                local pport = tonumber(pu.port) or 80
+                local puser, ppass = pu.user, pu.password
+
+                local tcp = socket.tcp()
+                tcp:settimeout(90)
+                local cok, cerr = tcp:connect(phost, pport)
+                if not cok then
+                    error('прокси connect: ' .. tostring(cerr))
+                end
+
+                local auth_line = ''
+                if puser and puser ~= '' then
+                    auth_line = 'Proxy-Authorization: Basic ' .. mime.b64(puser .. ':' .. (ppass or '')) .. '\r\n'
+                end
+                local conn_req = string.format(
+                    'CONNECT %s:%d HTTP/1.1\r\nHost: %s:%d\r\n%s\r\n',
+                    thost, tport, thost, tport, auth_line
+                )
+                local sok, serr = tcp:send(conn_req)
+                if not sok then
+                    tcp:close()
+                    error('CONNECT send: ' .. tostring(serr))
+                end
+
+                local line = tcp:receive('*l')
+                if not line then
+                    tcp:close()
+                    error('CONNECT: нет ответа')
+                end
+                if not line:find('200') then
+                    local buf = line
+                    repeat
+                        line = tcp:receive('*l')
+                        if not line then break end
+                        buf = buf .. '\n' .. line
+                    until line == ''
+                    tcp:close()
+                    error('CONNECT: ' .. buf)
+                end
+                repeat
+                    line = tcp:receive('*l')
+                    if line == nil then break end
+                until line == ''
+
+                local ssl_params = {
+                    mode = 'client',
+                    protocol = 'any',
+                    options = { 'all', 'no_sslv2', 'no_sslv3' },
+                    verify = 'none',
+                }
+                local ssock = ssl.wrap(tcp, ssl_params)
+                ssock:sni(thost)
+                local dh_ok, dh_err = ssock:dohandshake()
+                if not dh_ok then
+                    ssock:close()
+                    error('TLS: ' .. tostring(dh_err))
+                end
+
+                local post_body = body_str and body_str ~= ''
+                local method = post_body and 'POST' or 'GET'
+                local hdr = method .. ' ' .. path .. ' HTTP/1.1\r\n'
+                hdr = hdr .. 'Host: ' .. thost .. '\r\n'
+                hdr = hdr .. 'Connection: close\r\n'
+                hdr = hdr .. 'User-Agent: MoonLoader\r\n'
+                if post_body then
+                    local ct = 'application/x-www-form-urlencoded'
+                    if body_str:sub(1, 1) == '{' then
+                        ct = 'application/json; charset=utf-8'
+                    end
+                    hdr = hdr .. 'Content-Type: ' .. ct .. '\r\n'
+                    hdr = hdr .. 'Content-Length: ' .. tostring(#body_str) .. '\r\n'
+                end
+                hdr = hdr .. '\r\n'
+                local payload = hdr .. (post_body and body_str or '')
+                local send_ok, send_err = ssock:send(payload)
+                if not send_ok then
+                    ssock:close()
+                    error('HTTP send: ' .. tostring(send_err))
+                end
+
+                local status_line = ssock:receive('*l')
+                if not status_line then
+                    ssock:close()
+                    error('HTTP: нет статуса')
+                end
+                local http_code = tonumber(status_line:match('^HTTP/%d*%.%d* (%d%d%d)'))
+                local content_length
+                repeat
+                    line = ssock:receive('*l')
+                    if line == nil then break end
+                    if line == '' then break end
+                    local clow = line:lower()
+                    if clow:find('^content%-length:') then
+                        content_length = tonumber(line:match(':%s*(%d+)'))
+                    end
+                until line == ''
+
+                local body
+                if content_length and content_length > 0 then
+                    body = ssock:receive(content_length)
+                else
+                    body = ssock:receive('*a')
+                end
+                ssock:close()
+                if not body then
+                    body = ''
+                end
+                if http_code and http_code >= 400 then
+                    error('HTTP ' .. tostring(http_code) .. ' ' .. tostring(status_line))
+                end
+                return body
+            end
+
+            local function apply_telegram_api_check(body)
+                if body ~= '' and body:sub(1, 1) == '{' then
+                    local ok_j, data = pcall(decodeJson, body)
+                    if ok_j and type(data) == 'table' and data.ok == false then
+                        error(tostring(data.description or data.error or data.error_code or 'Telegram API: ok=false'))
+                    elseif not ok_j and (body:find('"ok"%s*:%s*false') or body:find('"ok":false')) then
+                        local desc = body:match('"description"%s*:%s*"([^"]*)"')
+                        error(desc or 'Telegram API: ok=false')
+                    end
+                end
+                return body
+            end
+
+            local p = proxy
+            if type(p) == 'string' then
+                p = p:gsub('^%s+', ''):gsub('%s+$', '')
+            end
+
+            local body
+            if p and p ~= '' then
+                body = https_via_http_proxy(p, u, a or '')
+                apply_telegram_api_check(body)
+                return body
+            end
+
+            local max_https = 4
+            for attempt = 1, max_https do
+                local chunks = {}
+                local req = {
+                    url = u,
+                    sink = ltn12.sink.table(chunks),
+                }
+                if a and a ~= '' then
+                    req.method = 'POST'
+                    req.source = ltn12.source.string(a)
+                    req.headers = req.headers or {}
+                    if a:sub(1, 1) == '{' then
+                        req.headers['content-type'] = 'application/json; charset=utf-8'
+                    else
+                        req.headers['content-type'] = 'application/x-www-form-urlencoded'
+                    end
+                    req.headers['content-length'] = tostring(#a)
+                end
+                local res, code, headers, status = https.request(req)
+                body = table.concat(chunks)
+                if res then
+                    if type(code) == 'number' and code >= 400 then
+                        local tail = (body ~= '' and body:sub(1, 500)) or ''
+                        if tail ~= '' then
+                            tail = ' | ' .. tail
+                        end
+                        error('HTTP ' .. tostring(code) .. ' ' .. tostring(status or '') .. tail)
+                    end
+                    apply_telegram_api_check(body)
+                    return body
+                end
+                local err = tostring(code or 'https.request failed')
+                local el = err:lower()
+                local transient = el:find('closed', 1, true) or el:find('timeout', 1, true)
+                    or el:find('reset', 1, true) or el:find('broken pipe', 1, true)
+                    or el:find('want read', 1, true) or el:find('want write', 1, true)
+                if not transient or attempt == max_https then
+                    error(err .. (body ~= '' and (' | ' .. body:sub(1, 400)) or ''))
+                end
+                socket.sleep(0.2 * attempt)
+            end
+        end)
         if ok then
             return {true, result}
         else
@@ -672,8 +552,8 @@ function requestRunner()
     end)
 end
 
-function threadHandle(runner, url, args, resolve, reject)
-	local t = runner(url, args)
+function threadHandle(runner, url, args, resolve, reject, proxy)
+	local t = runner(url, args, proxy)
 	local r = t:get(0)
 	while not r do
 		r = t:get(0)
@@ -683,19 +563,28 @@ function threadHandle(runner, url, args, resolve, reject)
     if status == 'completed' then
         local ok, result = r[1], r[2]
         if ok then resolve(result) else reject(result) end
-    elseif err then
-        reject(err)
     elseif status == 'canceled' then
         reject(status)
+    else
+        reject(tostring(status or 'effil thread'))
     end
     t:cancel(0)
 end
 
 function async_http_request(url, args, resolve, reject)
     local runner = requestRunner()
-    if not reject then reject = function() end end
+    if not reject then
+        reject = function(err)
+            print(tag .. '[TG] ' .. tostring(err))
+        end
+    end
+    local req_url, req_args = apply_telegram_site_relay(url, args)
+    local proxy = getTelegramProxyUrl()
+    if get_telegram_site_relay_url() ~= '' then
+        proxy = ''
+    end
     lua_thread.create(function()
-        threadHandle(runner, url, args, resolve, reject)
+        threadHandle(runner, req_url, req_args, resolve, reject, proxy)
     end)
 end
 
@@ -703,6 +592,39 @@ function encodeUrl(str, alreadyUtf8)
     str = str:gsub(' ', '%+')
     str = str:gsub('\n', '%%0A')
     return alreadyUtf8 and str or u8(str)
+end
+
+--- Релей: запросы на api.telegram.org идут POST на ваш tg-relay.php (сервер сам ходит в Telegram).
+function url_encode_form_component(s)
+    s = tostring(s or '')
+    return (s:gsub('([^%w%-%.%_~])', function(c)
+        return string.format('%%%02X', string.byte(c, 1))
+    end))
+end
+
+function get_telegram_site_relay_url()
+    if settings.telegram and settings.telegram.tg_use_server_config then
+        return TG_RELAY_URL
+    end
+    return ''
+end
+
+--- Только ASCII hex — PHP hex2bin, без поломки UTF-8/кавычек в JSON
+local function hex_encode_url_for_relay(s)
+    s = tostring(s)
+    local t = {}
+    for i = 1, #s do
+        t[#t + 1] = string.format('%02X', s:byte(i))
+    end
+    return table.concat(t)
+end
+
+function apply_telegram_site_relay(direct_url, orig_args)
+    if type(direct_url) ~= 'string' or not direct_url:find('^https://api%.telegram%.org/') then
+        return direct_url, orig_args
+    end
+    if get_telegram_site_relay_url() == '' then return direct_url, orig_args end
+    return get_telegram_site_relay_url(), '{"hex":"' .. hex_encode_url_for_relay(direct_url) .. '"}'
 end
 
 local items_names = {}
@@ -734,6 +656,12 @@ function sendTelegramNotification(msg, keyboard)
     if not settings.telegram.tg_active then
         return
     end
+    local tok = tostring(settings.telegram.token or ''):gsub('%s+', '')
+    local cid = tostring(settings.telegram.chat_id or ''):gsub('%s+', '')
+    if tok == '' or cid == '' then
+        telegramLog('Заполните TOKEN и ID (chat_id), сохраните настройки.', true)
+        return
+    end
 
     msg = u8(msg)
     msg = replaceItemCodes(msg)
@@ -742,19 +670,63 @@ function sendTelegramNotification(msg, keyboard)
     
     local reply_markup = keyboard or '{"keyboard": [["👤 Статистика"], ["💬 | Семейный чат", "📝 Команды"]] , "resize_keyboard": true}'
     
-    async_http_request('https://api.telegram.org/bot' .. settings.telegram.token .. '/sendMessage?chat_id=' .. settings.telegram.chat_id .. '&reply_markup=' .. reply_markup .. '&text='..msg, '', function(result)
+    async_http_request('https://api.telegram.org/bot' .. tok .. '/sendMessage?chat_id=' .. cid .. '&reply_markup=' .. reply_markup .. '&text='..msg, '', function(result)
+    end, function(err)
+        telegramLog(tostring(err), true)
     end)
+end
+
+local function sendTelegramMessageTo(chat_id, msg, keyboard)
+    if not settings.telegram.tg_active then
+        return
+    end
+    if not chat_id or tostring(chat_id) == '' then
+        return
+    end
+
+    msg = u8(msg)
+    msg = replaceItemCodes(msg)
+    msg = msg:gsub('{......}', '')
+    msg = encodeUrl(msg, true)
+
+    local reply_markup = keyboard or '{"remove_keyboard": true}'
+    local tok2 = tostring(settings.telegram.token or ''):gsub('%s+', '')
+    async_http_request('https://api.telegram.org/bot' .. tok2 .. '/sendMessage?chat_id=' .. tostring(chat_id) .. '&reply_markup=' .. reply_markup .. '&text=' .. msg, '', function(result)
+    end, function(err)
+        telegramLog(tostring(err), true)
+    end)
+end
+
+-- TG: как в Cerberus (1) — только чат из настроек (chat_id = id ЛС с ботом)
+local function isAuthorizedTelegramUser(msg)
+    if not msg or not msg.chat then
+        return false
+    end
+    local cid = msg.chat and tostring(msg.chat.id):gsub('%s+', '') or ''
+    local want = tostring(settings.telegram.chat_id or ''):gsub('%s+', '')
+    if cid == '' or want == '' or cid ~= want then
+        return false
+    end
+    return true
 end
 
 function get_telegram_updates()
     while not updateid do wait(1) end
     local runner = requestRunner()
-    local reject = function() end
+    local reject = function(err)
+        print(tag .. '[TG] getUpdates: ' .. tostring(err))
+    end
     local args = ''
     while true do
         local offset = (updateid and (updateid + 1)) or 1
-        local url = 'https://api.telegram.org/bot'..settings.telegram.token..'/getUpdates?offset='..tostring(offset)..'&timeout=25'
-        threadHandle(runner, url, args, processing_telegram_messages, reject)
+        local tok_gu = tostring(settings.telegram.token or ''):gsub('%s+', '')
+        local url = 'https://api.telegram.org/bot'..tok_gu..'/getUpdates?offset='..tostring(offset)..'&timeout=25'
+        local req_url, req_args = apply_telegram_site_relay(url, args)
+        local proxy = getTelegramProxyUrl()
+        if get_telegram_site_relay_url() ~= '' then
+            proxy = ''
+        end
+        threadHandle(runner, req_url, req_args, processing_telegram_messages, reject, proxy)
         wait(0)
     end
 end
@@ -777,8 +749,9 @@ function processing_telegram_messages(result, arg)
             updateid = res_table.update_id
             local msg = res_table.message
             if not msg or not msg.text then goto continue end
-            local chat_id_ok = (msg.chat and tostring(msg.chat.id) == tostring(settings.telegram.chat_id))
-            if not chat_id_ok then goto continue end
+            if not isAuthorizedTelegramUser(msg) then
+                goto continue
+            end
             local message_from_user = msg.text
             local text = (message_from_user) .. ' '
 							if bot_state == "main" then
@@ -832,7 +805,8 @@ function processing_telegram_messages(result, arg)
 end
 
 function getLastUpdate()
-    async_http_request('https://api.telegram.org/bot'..settings.telegram.token..'/getUpdates?offset=-1&limit=1', '', function(result)
+    local tok_gl = tostring(settings.telegram.token or ''):gsub('%s+', '')
+    async_http_request('https://api.telegram.org/bot'..tok_gl..'/getUpdates?offset=-1&limit=1', '', function(result)
         if result then
             local ok_j, proc_table = pcall(decodeJson, result)
             if ok_j and proc_table and proc_table.ok then
@@ -847,6 +821,9 @@ function getLastUpdate()
         else
             updateid = 1
         end
+    end, function(err)
+        print(tag .. '[TG] getLastUpdate: ' .. tostring(err))
+        updateid = 1
     end)
 end
 -- ДЛЯ РАБОТЫ С ВК
@@ -873,10 +850,10 @@ function threadHandle1(runner, url, args, resolve, reject)
     if status == 'completed' then
         local ok, result = r[1], r[2]
         if ok then resolve(result) else reject(result) end
-    elseif err then
-        reject(err)
     elseif status == 'canceled' then
         reject(status)
+    else
+        reject(tostring(status or 'effil thread'))
     end
     t:cancel(0)
 end
@@ -991,6 +968,44 @@ function sendVkontakteNotification(msg, keyboard)
     end)
 end
 
+local function sendVkontakteMessageTo(peer_id, msg)
+    if not settings.vkontakte or not settings.vkontakte.vk_active then
+        return
+    end
+    if not settings.vkontakte.vk_token or settings.vkontakte.vk_token == '' then return end
+    if not peer_id or tostring(peer_id) == '' then return end
+
+    msg = tostring(msg)
+    msg = ensure_utf8(msg)
+    local ok, replaced = pcall(replaceItemCodes, msg)
+    msg = (ok and replaced) or msg
+    msg = msg:gsub('{......}', '')
+    local encoded_msg = encodeUrl1(msg)
+
+    local random_id = math.floor(os.clock() * 1000) + math.random(1, 99999)
+    local url = 'https://api.vk.com/method/messages.send?peer_id=' .. encodeUrl1(peer_id) ..
+        '&random_id=' .. random_id ..
+        '&message=' .. encoded_msg ..
+        '&access_token=' .. encodeUrl1(settings.vkontakte.vk_token) ..
+        '&v=5.199'
+    async_http_request1(url, '', function(result)
+    end)
+end
+
+-- VK: как в Cerberus (1) — при непустом vk_chat_id: peer_id или from_id должен совпадать
+local function isAuthorizedVkontakteUser(message)
+    if type(message) ~= 'table' then
+        return false
+    end
+    local want = tostring(settings.vkontakte.vk_chat_id or ''):gsub('%s+', '')
+    if want == '' then
+        return true
+    end
+    local p = tostring(message.peer_id or ''):gsub('%s+', '')
+    local f = tostring(message.from_id or ''):gsub('%s+', '')
+    return p == want or f == want
+end
+
 function getLongPollServerVK()
     if not settings.vkontakte.vk_group_id or not settings.vkontakte.vk_token then return end
     local url = 'https://api.vk.com/method/groups.getLongPollServer?group_id=' .. encodeUrl1(settings.vkontakte.vk_group_id) ..
@@ -1038,9 +1053,13 @@ end
 function vk_process_pending_messages()
     while true do
         if #vk_pending_messages > 0 then
-            local txt = table.remove(vk_pending_messages, 1)
-            if txt and txt ~= '' then
-                pcall(processing_vkontakte_messages, txt)
+            local item = table.remove(vk_pending_messages, 1)
+            if item then
+                if type(item) == 'string' then
+                    pcall(processing_vkontakte_messages, { text = item })
+                else
+                    pcall(processing_vkontakte_messages, item)
+                end
             end
         end
         wait(0)
@@ -1055,8 +1074,17 @@ local function vk_btn(text, btn)
     return t == utf8_btn or t:sub(1, #utf8_btn) == utf8_btn or t:find(utf8_btn, 1, true) == 1
 end
 
-function processing_vkontakte_messages(text)
+function processing_vkontakte_messages(message)
+    if not message then return end
+    if type(message) == 'string' then
+        message = { text = message }
+    end
+
+    local text = message.text
     if not text or text == '' then return end
+    if not isAuthorizedVkontakteUser(message) then
+        return
+    end
     -- Убираем префикс кнопки ВК (например "| Семейный чат" или " | Команды")
     text = text:gsub('^%s*|%s*', ''):gsub('^%s+', ''):gsub('%s+$', '')
     text = text .. ' '
@@ -1145,17 +1173,27 @@ function get_vkontakte_updates()
                     goto skip_update
                 end
                 local msg_text = ''
+                local peer_id, from_id
                 if etype == 4 or etype == '4' then
                     msg_text = tostring(update[7] or update["7"] or update[6] or update["6"] or ''):gsub('^%s+', ''):gsub('%s+$', '')
+                    -- Long Poll: [1]=type, [2]=msg_id, [3]=flags, [4]=peer_id (часто)
+                    peer_id = tonumber(update[4] or update["4"] or update[3] or update["3"] or 0) or 0
+                    from_id = peer_id
                 else
                     local obj = update.object
                     if obj then
                         local msg = obj.message or obj
                         msg_text = (msg and (msg.text or msg.body)) or ''
+                        peer_id = msg and msg.peer_id
+                        from_id = msg and msg.from_id
                     end
                 end
                 if msg_text and msg_text ~= '' then
-                    table.insert(vk_pending_messages, msg_text)
+                    table.insert(vk_pending_messages, {
+                        text = msg_text,
+                        from_id = from_id,
+                        peer_id = peer_id,
+                    })
                 end
                 ::skip_update::
             end
@@ -1352,38 +1390,6 @@ function ev.onServerMessage(color, text)
 	if text:find(u8:decode'Вы успешно приготовили 1 жареный кусок мяса оленины! Чтобы покушать, используйте: /eat или /jmeat') then
 		return false
 	end
-	-- Автозаточка: обработка сообщений заточки
-	if az_max_toch > 0 and text and #text > 0 then
-		local t = text:gsub("%{%x%x%x%x%x%x%}", "")
-		local PATTERN_FAIL_AZ = u8:decode("Увы, вам не удалось улучшить предмет .* . %+%d+ на %+%d+")
-		local PATTERN_SUCCESS_AZ = u8:decode("Успех! Вам удалось улучшить предмет .* . %+%d+ на %+(%d+)")
-		local PATTERN_OLD_AZ = u8:decode("Отлично! Вы смогли заточить оружие .+ с %+%d+ до %+(%d+)")
-		local PATTERN_FAIL_U8_AZ = "Увы, вам не удалось улучшить предмет .* . %+%d+ на %+%d+"
-		local PATTERN_SUCCESS_U8_AZ = "Успех! Вам удалось улучшить предмет .* . %+%d+ на %+(%d+)"
-		if t:find(PATTERN_FAIL_AZ) or t:find(PATTERN_FAIL_U8_AZ) then
-			az_tochi = true
-			az_all_lost = az_all_lost + 1
-			az_lost_stone_onLVL = az_lost_stone_onLVL + 1
-		end
-		local tochLVL = t:match(PATTERN_SUCCESS_AZ) or t:match(PATTERN_SUCCESS_U8_AZ)
-		if not tochLVL then tochLVL = t:match(PATTERN_OLD_AZ) end
-		if tochLVL then
-			if az_playSound[0] then addOneOffSound(0.0, 0.0, 0.0, 1139) end
-			az_lost_stone_onLVL = az_lost_stone_onLVL + 1
-			tochLVL = tonumber(tochLVL)
-			az_all_lost = az_all_lost + 1
-			table.insert(az_lost_stone, {az_lost_stone_onLVL, tochLVL})
-			az_lost_stone_onLVL = 0
-			if tochLVL < tonumber(az_max_toch) then
-				az_tochi = true
-			elseif tochLVL == tonumber(az_max_toch) then
-				az_tochi = false
-				az_max_toch = 0
-				az_stone_check = false
-				az_status = false
-			end
-		end
-	end
 end
 
 function sampev.onShowDialog(id, style, title, btn1, btn2, text)
@@ -1392,29 +1398,6 @@ function sampev.onShowDialog(id, style, title, btn1, btn2, text)
             wait(200)
             sampSendDialogResponse(id, 1, 1, '')
         end)
-    end
-end
-
-function sampev.onShowTextDraw(id, data)
-    if data.text and (data.text:find('WORKSHOP') or data.text:find('МАСТЕРСКАЯ') or data.text:find('Мастерская') or data.text:find('ВЕРСТАК') or data.text:find('Верстак') or data.text:find('верстак')) then
-        az_stone = {}
-        az_workshop_check = true
-    end
-    if data.text and (data.text:find('ENCHANT') or data.text:find('ЗАТОЧКА') or data.text:find('Заточка')) then
-        az_button_id = id - 1
-    end
-    if data.letterColor == -10398017 and data.lineWidth == 44 and data.lineHeight == 16 and data.position.x < 200 then
-        az_button_id = id
-    end
-    if az_workshop_check then
-        if az_stone_check then
-            if data.lineWidth >= 1 then
-                az_stone_check = false
-            end
-        end
-        if data.modelId == Whetstone_ITEM_ID and data.selectable == 1 then
-            table.insert(az_stone, {id})
-        end
     end
 end
 
@@ -1460,147 +1443,31 @@ function main()
         createDirectory(getWorkingDirectory()..'\\MiniHelper')
     end
     for i, v in ipairs(sounds) do
-        if not doesFileExist(getWorkingDirectory()..'\\MiniHelper\\'..v['file_name']) then
-            notifications.debug(u8:decode'Загружаю: ' .. v['file_name'], 7000)
-            downloadUrlToFile(v['url'], getWorkingDirectory()..'\\MiniHelper\\'..v['file_name'])
-        end
-
-        local stream = loadAudioStream(getWorkingDirectory()..'\\MiniHelper\\'..v['file_name'])
-        if stream then
-            table.insert(sound_streams, stream)
+        local path = getWorkingDirectory() .. '\\MiniHelper\\' .. v['file_name']
+        if doesFileExist(path) then
+            local stream = loadAudioStream(path)
+            if stream then
+                table.insert(sound_streams, stream)
+            end
         end
     end
 	getLastUpdate()
 	if settings.vkontakte.vk_active and settings.vkontakte.vk_token and settings.vkontakte.vk_token ~= '' and settings.vkontakte.vk_group_id and settings.vkontakte.vk_group_id ~= '' then
 		initVK()
 	end
-	-- Автозаточка: обработчик CEF пакетов
-	addEventHandler('onReceivePacket', function(id, bs)
-		if id ~= 220 then return end
-		raknetBitStreamIgnoreBits(bs, 8)
-		local packetType = raknetBitStreamReadInt8(bs)
-		if packetType == 17 then
-			raknetBitStreamIgnoreBits(bs, 32)
-			local length = raknetBitStreamReadInt16(bs)
-			local encoded = raknetBitStreamReadInt8(bs)
-			if length > 0 then
-				local str = (encoded ~= 0) and raknetBitStreamDecodeString(bs, length + encoded) or raknetBitStreamReadString(bs, length)
-				if not str then return end
-				if str:find('updateEnchantSlots') then
-					az_workshop_check = true
-					local jsonData = str:match('updateEnchantSlots|(.+)')
-					if jsonData then
-						local index = jsonData:match('"index":(%d+)') or jsonData:match('"index":(%-?%d+)')
-						local left = jsonData:match('"left":(%d+)') or jsonData:match('"left":(%-?%d+)')
-						local right = jsonData:match('"right":(%d+)') or jsonData:match('"right":(%-?%d+)')
-						local color = jsonData:match('"color":(%d+)') or jsonData:match('"color":(%-?%d+)')
-						if index then az_enchantSlotsData.index = tonumber(index) end
-						if left then az_enchantSlotsData.left = tonumber(left) end
-						if right then az_enchantSlotsData.right = tonumber(right) end
-						if color then az_enchantSlotsData.color = tonumber(color) end
-						if az_enchantSlotsData.left == -1 and az_status and az_max_toch > 0 and not az_tochi then
-							lua_thread.create(function()
-								wait(300)
-								az_click_onStone()
-							end)
-						end
-					end
-				end
-			end
-		end
-		if packetType == 18 then
-			local dataLength = raknetBitStreamReadInt16(bs)
-			local encoded = raknetBitStreamReadInt8(bs)
-			if dataLength > 0 then
-				local data = (encoded ~= 0) and raknetBitStreamDecodeString(bs, dataLength + encoded) or raknetBitStreamReadString(bs, dataLength)
-				if data and data:find('updateEnchantSlots') then
-					az_workshop_check = true
-				end
-			end
-		end
-	end)
-	-- Фоновое обновление наличия точильного камня
-	lua_thread.create(function()
-		while true do
-			wait(Whetstone_CHECK_INTERVAL_MS)
-			az_whetstone_detected = (getWhetstoneCount() > 0)
-		end
-	end)
-	-- Цикл автозаточки
-	lua_thread.create(function()
-		evalanon([[
-			window.enchantInterfaceOpen = false;
-			window.workshopOpen = false;
-			setInterval(function() {
-				var bodyText = (document.body.innerText || document.body.textContent || '').toUpperCase();
-				if (bodyText.includes('WORKSHOP') || bodyText.includes('ВЕРСТАК') || bodyText.includes('ENCHANT') || bodyText.includes('ЗАТОЧКА')) window.workshopOpen = true;
-				if (document.querySelectorAll('[data-item-id="1187"], [data-model="1187"]').length > 0) window.workshopOpen = true;
-			}, 1000);
-		]])
-		while true do
-			wait(0)
-			if az_status then
-				if (az_workshop_check and az_tochi) then
-					wait(1500)
-					az_stone_check = true
-					findAndClickEnchantButton()
-					wait(200)
-					startEnchant()
-					if az_button_id > 0 then
-						wait(200)
-						sampSendClickTextdraw(az_button_id)
-					end
-					az_tochi = false
-					wait(1500)
-					if az_stone_check then
-						if #az_stone > 0 then
-							table.remove(az_stone, 1)
-						end
-						az_stone_check = false
-						az_tochi = false
-						wait(500)
-						az_click_onStone()
-					end
-				elseif az_workshop_check and az_status and az_max_toch > 0 and not az_tochi then
-					wait(1000)
-					if #az_stone == 0 then
-						findAndClickStone()
-					else
-						az_click_onStone()
-					end
-				elseif az_status and az_max_toch > 0 and not az_workshop_check then
-					wait(2000)
-					az_checkWorkshopStatus()
-					evalanon([[
-						var bodyText = (document.body.innerText || '').toUpperCase();
-						if (bodyText.includes('WORKSHOP') || bodyText.includes('ВЕРСТАК') || bodyText.includes('ENCHANT') || bodyText.includes('ЗАТОЧКА') || document.querySelectorAll('[data-item-id="1187"], [data-model="1187"]').length > 0 || window.workshopDetected === true || window.workshopOpen === true || window.enchantInterfaceOpen === true) window.workshopShouldBeOpen = true;
-					]])
-					az_workshop_check = true
-					wait(500)
-					az_click_onStone()
-				end
-			end
-		end
-	end)
 end
--- ГОВНОКОД
--- ГОВНОКОД
--- ГОВНОКОД
+
 imgui.OnFrame(function() return WinState[0] end, function(player)
     imgui.SetNextWindowPos(imgui.ImVec2(500, 500), imgui.Cond.FirstUseEver, imgui.ImVec2(0.5, 0.5))
-    imgui.SetNextWindowSize(imgui.ImVec2(506, 243), imgui.Cond.Always)
+    imgui.SetNextWindowSize(imgui.ImVec2(509, 243), imgui.Cond.Always)
     imgui.Begin('##Window', WinState, imgui.WindowFlags.NoResize + imgui.WindowFlags.NoCollapse)
 
     if imgui.BeginChild('Menu', imgui.ImVec2(136, 208), false) then
-        local buttonHeight = 22
-        local totalButtonHeight = 8 * buttonHeight
-        local startY = (185 - totalButtonHeight) / 2
-        imgui.SetCursorPosY(startY)
         if imgui.GradientPB(tab == 1, fa.ICON_FA_HOME, 'ГЛАВНАЯ', 0.40) then tab = 1 end
         if imgui.GradientPB(tab == 2, fa.ICON_FA_COG, 'НАСТРОЙКИ', 0.40) then tab = 2 end
         if imgui.GradientPB(tab == 3, fa.ICON_FA_PAPER_PLANE, 'УВЕДОМЛЕНИЯ', 0.40) then tab = 3 end
         if imgui.GradientPB(tab == 4, fa.ICON_FA_BUG, 'ПОЛЕЗНОЕ', 0.40) then tab = 4 end
-		if imgui.GradientPB(tab == 5, fa.ICON_FA_HAMMER, 'АВТОЗАТОЧКА', 0.40) then tab = 5 end
+        if imgui.GradientPB(tab == 5, fa.ICON_FA_NETWORK_WIRED, 'ПРОКСИ', 0.40) then tab = 5 end
         imgui.EndChild()
     end
 
@@ -1654,7 +1521,7 @@ imgui.OnFrame(function() return WinState[0] end, function(player)
 						imgui.OpenPopup('Настройка TG уведомлений')
 					end
 					if imgui.BeginPopupModal('Настройка TG уведомлений', _, imgui.WindowFlags.NoResize) then
-						imgui.SetWindowSizeVec2(imgui.ImVec2(370, 325))
+						imgui.SetWindowSizeVec2(imgui.ImVec2(370, 400))
 						if imgui.Checkbox('Получать сообщения семьи     ', telegram_fam) then
 							settings.telegram.tg_fam = telegram_fam[0]
 							ini.save(settings, 'Minihelper.ini')
@@ -1700,7 +1567,7 @@ imgui.OnFrame(function() return WinState[0] end, function(player)
 					imgui.SetNextItemWidth(234)if imgui.InputTextWithHint('##ID', 'ID', inputid, 256) then end imgui.SameLine() imgui.Text('Ваш ID')
 					if imgui.IsItemHovered() then
 						imgui.BeginTooltip()
-						imgui.Text('Свой id вы можете получить у @my_id_bot')
+						imgui.Text('chat_id: куда слать уведомления и откуда принимать команды.\nВ ЛС с ботом это твой user id (@my_id_bot).\nЧужие сообщения боту не обрабатываются — id чата другой.')
 						imgui.EndTooltip()
 					end
 					imgui.SetNextItemWidth(234)if imgui.InputTextWithHint('##TOKEN', 'TOKEN', inputtoken, 256) then end imgui.SameLine() imgui.Text('Ваш TOKEN')
@@ -1710,11 +1577,22 @@ imgui.OnFrame(function() return WinState[0] end, function(player)
 						imgui.EndTooltip()
 					end
 					if imgui.Button('Отправка тестового сообщения') then
-						sendTelegramNotification(u8:decode(tag.. 'Скрипт работает\nДля того что бы начать им пользоваться напиши /help'))
+						if not telegram_rabota[0] then
+							telegramLog('Включите «Разрешить уведомления» и нажмите «Сохранить настройки».', true)
+						else
+							sendTelegramNotification(u8:decode(tag.. 'Скрипт работает\nДля того что бы начать им пользоваться напиши /help'))
+						end
 					end
 					if imgui.Button('Сохранить настройки', imgui.ImVec2(137, 30)) then
 						settings.telegram.chat_id = (str(inputid))
 						settings.telegram.token = (str(inputtoken))
+						settings.telegram.tg_proxy_host = (str(inputproxyhost))
+						settings.telegram.tg_proxy_port = (str(inputproxyport))
+						settings.telegram.tg_proxy_login = (str(inputproxylogin))
+						settings.telegram.tg_proxy_password = (str(inputproxypass))
+						settings.telegram.tg_proxy = ''
+						settings.telegram.tg_use_server_config = telegram_use_server[0]
+						settings.telegram.tg_use_proxy = telegram_use_proxy[0]
 						settings.telegram.tg_active = telegram_rabota[0]
 						ini.save(settings, 'MiniHelper.ini')
 						thisScript():reload()
@@ -1777,7 +1655,7 @@ imgui.OnFrame(function() return WinState[0] end, function(player)
 					imgui.SetNextItemWidth(234)if imgui.InputTextWithHint('##ID', 'ID', vkinputid, 256) then end imgui.SameLine() imgui.Text('Ваш ID')
 					if imgui.IsItemHovered() then
 						imgui.BeginTooltip()
-						imgui.Text('Настройки → Аккаунт и внешний вид → Адрес страницы')
+						imgui.Text('peer_id: куда слать уведомления. Должен совпадать с твоим id ВК в ЛС с сообществом — тогда команды обрабатываются только от тебя.')
 						imgui.EndTooltip()
 					end
 					imgui.SetNextItemWidth(234)if imgui.InputTextWithHint('##TOKEN', 'TOKEN', vkinputtoken, 256) then end imgui.SameLine() imgui.Text('Token сообщества')
@@ -1837,41 +1715,50 @@ imgui.OnFrame(function() return WinState[0] end, function(player)
                     ini.save(settings, 'MiniHelper.ini')
                 end
 			end
-		elseif tab == 5 then
-			-- Количество попыток (всего)
-			imgui.Text('Количество попыток: ' .. tostring(az_all_lost))
-			imgui.SameLine()
-			if imgui.Button('Сбросить попытки', imgui.ImVec2(140, 24)) then
-				az_lost_stone = {}
-				az_all_lost = 0
-				az_lost_stone_onLVL = 0
-				az_max_toch = 0
-				az_stone_check = false
-				az_status = false
-				az_tochi = false
-				az_workshop_check = false
+        elseif tab == 5 then
+            imgui.Text('Сервер')
+			if imgui.Checkbox('Включить | Сервер', telegram_use_server) then
+				settings.telegram.tg_use_server_config = telegram_use_server[0]
+				ini.save(settings, 'MiniHelper.ini')
+			end
+            if imgui.IsItemHovered() then
+                imgui.BeginTooltip()
+                imgui.Text('Включите данную функцию, если у вас не работают уведомления в телеграме.')
+                imgui.EndTooltip()
+            end
+			if imgui.Button('Отправить тестовое сообщение', imgui.ImVec2(260, 28)) then
+				if not telegram_rabota[0] then
+					telegramLog('Включите «Разрешить уведомления» и сохраните настройки.', true)
+				else
+					sendTelegramNotification(u8:decode(tag.. 'Скрипт работает\nДля того что бы начать им пользоваться напиши /help'))
+				end
 			end
 			imgui.Separator()
-			imgui.Text('Начать заточку (точить до уровня):')
-			imgui.Separator()
-			for i = 1, 12 do
-				if imgui.ColoredButton('+'..tostring(i), imgui.ImVec2(30, 20), (i==az_max_toch and '32CD32' or 'F94242'), 50) then
-					if az_max_toch ~= i then
-						az_status = true
-						az_max_toch = i
-						lua_thread.create(function()
-							wait(100)
-							az_click_onStone()
-						end)
-					else
-						az_status = false
-						az_max_toch = 0
-						az_tochi = false
-						az_stone_check = false
-						az_workshop_check = false
-					end
-				end
-				if (i % 6) ~= 0 then imgui.SameLine() end
+			imgui.Text('Кастомный прокси')
+			imgui.TextWrapped('Только для прямого доступа к Telegram с этого ПК.')
+			if imgui.Checkbox('Использовать прокси', telegram_use_proxy) then
+				settings.telegram.tg_use_proxy = telegram_use_proxy[0]
+				ini.save(settings, 'MiniHelper.ini')
+			end
+            if imgui.IsItemHovered() then
+                imgui.BeginTooltip()
+                imgui.Text('Сюда можно ввести свои IP, PORT, LOGIN, PASSWORD для прокси.')
+                imgui.EndTooltip()
+            end
+			imgui.SetNextItemWidth(234)if imgui.InputTextWithHint('##PROXYIP', 'IP', inputproxyhost, 256) then end imgui.SameLine() imgui.Text('IP')
+			imgui.SetNextItemWidth(234)if imgui.InputTextWithHint('##PROXYPORT', 'PORT', inputproxyport, 16) then end imgui.SameLine() imgui.Text('PORT')
+			imgui.SetNextItemWidth(234)if imgui.InputTextWithHint('##PROXYLOGIN', 'LOGIN', inputproxylogin, 256) then end imgui.SameLine() imgui.Text('LOGIN')
+			imgui.SetNextItemWidth(234)if imgui.InputTextWithHint('##PROXYPASS', 'PASSWORD', inputproxypass, 256, imgui.InputTextFlags.Password) then end imgui.SameLine() imgui.Text('PASSWORD')
+			if imgui.Button('Сохранить', imgui.ImVec2(137, 30)) then
+				settings.telegram.tg_proxy_host = (str(inputproxyhost))
+				settings.telegram.tg_proxy_port = (str(inputproxyport))
+				settings.telegram.tg_proxy_login = (str(inputproxylogin))
+				settings.telegram.tg_proxy_password = (str(inputproxypass))
+				settings.telegram.tg_proxy = ''
+				settings.telegram.tg_use_server_config = telegram_use_server[0]
+				settings.telegram.tg_use_proxy = telegram_use_proxy[0]
+				ini.save(settings, 'MiniHelper.ini')
+				thisScript():reload()
 			end
         end
 
@@ -1885,7 +1772,6 @@ end)
 
 
 
----ХУЙНЯ
 function comma_value(n)
 	local left,num,right = string.match(n,'^([^%d]*%d)(%d*)(.-)$')
 	return left..(num:reverse():gsub('(%d%d%d)','%1,'):reverse())..right
@@ -1904,19 +1790,6 @@ function separator(text)
 	    end
 	end
 	return text
-end
-
--- Кнопка с цветом (для автозаточки)
-function imgui.ColoredButton(text, size, hex, trans)
-    local r,g,b = tonumber("0x"..hex:sub(1,2)), tonumber("0x"..hex:sub(3,4)), tonumber("0x"..hex:sub(5,6))
-    local a = 60
-    if tonumber(trans) ~= nil and tonumber(trans) < 101 and tonumber(trans) > 0 then a = trans end
-    imgui.PushStyleColor(imgui.Col.Button, imgui.ImVec4(r/255, g/255, b/255, a/100))
-    imgui.PushStyleColor(imgui.Col.ButtonHovered, imgui.ImVec4(r/255, g/255, b/255, a/100))
-    imgui.PushStyleColor(imgui.Col.ButtonActive, imgui.ImVec4(r/255, g/255, b/255, a/100))
-    local button = imgui.Button(text, size)
-    imgui.PopStyleColor(3)
-    return button
 end
 
 GradientPB = {}
@@ -2035,5 +1908,3 @@ end
 imgui.OnInitialize(function()
     theme()
 end)
-	
-
